@@ -453,6 +453,14 @@ class Conditions:
     tide_norm: float = None    # 0 = basse mer, 1 = pleine mer (rempli par annotate_tide)
     tide_trend: float = None   # variation (m/h) : + montante, - descendante
     tide_range: float = None   # marnage du jour (m) = amplitude basse→pleine (vive-eau vs morte-eau)
+    # Trains de houle séparés (le TOTAL reste dans swell_h/period/dir, gardé pour la taille).
+    # sw1 = houle primaire, sw2 = houle secondaire (ex : houle de fond longue sous le clapot).
+    sw1_h: float = None
+    sw1_t: float = None
+    sw1_dir: float = None
+    sw2_h: float = None
+    sw2_t: float = None
+    sw2_dir: float = None
 
 
 @dataclass
@@ -467,13 +475,42 @@ class Evaluation:
     explanation: str = ""                          # texte long (replié)
 
 
+def dominant_swell(c: Conditions):
+    """Parmi les trains de houle (primaire sw1, secondaire sw2), retourne celui qui fait
+    les MEILLEURES vagues = celui qui DÉFERLE le plus gros, + le 2e train s'il existe.
+    Comme une houle longue shoale davantage, ce critère met en avant la houle de fond
+    même quand la mer du vent domine la hauteur totale. Retourne (dominant, autre) ou (None, None)."""
+    comps = [(h, t, dr) for (h, t, dr) in
+             [(c.sw1_h, c.sw1_t, c.sw1_dir), (c.sw2_h, c.sw2_t, c.sw2_dir)]
+             if h and t and h >= 0.05]
+    if not comps:
+        return None, None
+    comps.sort(key=lambda x: breaking_height(x[0], x[1]), reverse=True)
+    return comps[0], (comps[1] if len(comps) > 1 else None)
+
+
+def groundswell_note(dom, sw2) -> str | None:
+    """Signale une houle de fond LONGUE et significative (le train propre sous le clapot)."""
+    for comp in (dom, sw2):
+        if comp and comp[1] and comp[0] and comp[1] >= 10 and comp[0] >= 0.15:
+            return (f"🌊 Houle de fond de {comp[0]:.1f} m à {comp[1]:.0f} s (longue période) : "
+                    f"c'est elle qui fait les belles séries propres sous le clapot.")
+    return None
+
+
 def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
     """Score de SURFABILITÉ pour un niveau donné (pas un score d'énergie brute)."""
     lv = LEVELS.get(level, LEVELS["debutant"])
+    # Houles : la TAILLE vient de la mer totale (comme les sites de report), mais la
+    # PROPRETÉ et l'ORIENTATION viennent du train qui casse le mieux (souvent la houle de
+    # fond, longtemps ignorée quand la mer du vent domine la période moyenne).
+    dom, sw2 = dominant_swell(c)
+    surf_t = dom[1] if dom else c.swell_period
+    surf_dir = dom[2] if (dom and dom[2] is not None) else c.swell_dir
     power = wave_power_kw_m(c.swell_h, c.swell_period)
-    char = swell_character(c.swell_period)
+    char = swell_character(surf_t)
     wind = wind_quality(c.wind_dir, c.wind_speed, spot["offshore_dir"])
-    sdir = swell_direction_quality(c.swell_dir, spot["swell_window"])
+    sdir = swell_direction_quality(surf_dir, spot["swell_window"])
     hb = breaking_height(c.swell_h, c.swell_period)
     size = wave_size_label(hb)
 
@@ -508,7 +545,11 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
         # la barre "Vagues" reflète l'ADÉQUATION à ton niveau (vert = idéale pour toi)
         "vague": {"h": round(hb, 2), "label": size["label"], "factor": round(sfit, 2)},
         "houle": {"h": c.swell_h, "periode": c.swell_period, "dir": c.swell_dir,
-                  "label": char["label"], "clean": char["clean"]},
+                  "label": char["label"], "clean": char["clean"],
+                  "surf_periode": round(surf_t, 1) if surf_t else None,
+                  "secondaire": ({"h": round(sw2[0], 2), "periode": round(sw2[1], 1),
+                                  "dir": round(sw2[2]) if sw2[2] is not None else None}
+                                 if sw2 else None)},
         "vent": {"speed": c.wind_speed, "dir": c.wind_dir, "glassoff": glassoff, **wind},
         "orientation": sdir,
         "maree": {"state": tide["state"], "norm": tide.get("norm"), "breaker": tide["breaker"],
@@ -519,6 +560,9 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
 
     headline = build_headline(score, hb, lv, char, wind, sdir, too_big, tide)
     explanation = build_explanation(score, label, c, char, wind, sdir, power, spot, tide)
+    gn = groundswell_note(dom, sw2)
+    if gn:
+        explanation += " " + gn
     bw = backwash_note(c.tide_norm, c.tide_range, c.swell_period, spot)
     if bw:
         explanation += " " + bw

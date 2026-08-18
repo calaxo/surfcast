@@ -49,7 +49,12 @@ def build_evals(spot, days=3, model=None, level="debutant", past_days=0):
         conds.append(science.Conditions(
             time=h["time"], swell_h=sh, swell_period=sp, swell_dir=sd,
             wind_wave_h=h["wind_wave_height"], wind_speed=h["wind_speed_10m"],
-            wind_dir=h["wind_direction_10m"], tide_m=h.get("sea_level_height_msl")))
+            wind_dir=h["wind_direction_10m"], tide_m=h.get("sea_level_height_msl"),
+            # trains de houle séparés : primaire = swell_wave_*, secondaire = secondary_swell_wave_*
+            sw1_h=h.get("swell_wave_height"), sw1_t=h.get("swell_wave_peak_period"),
+            sw1_dir=h.get("swell_wave_direction"),
+            sw2_h=h.get("secondary_swell_wave_height"), sw2_t=h.get("secondary_swell_wave_period"),
+            sw2_dir=h.get("secondary_swell_wave_direction")))
     # Marée annotée PAR JOUR (normalisation basse/pleine + marnage corrects par jour,
     # sinon un lot de 6 jours mélange vive-eau et morte-eau).
     by_day = {}

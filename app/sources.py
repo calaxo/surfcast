@@ -24,6 +24,8 @@ FORECAST_TTL = 3 * 3600  # la prévision ne change que quelques fois/jour → ca
 MARINE_VARS = [
     "wave_height", "wave_period", "wave_direction",
     "swell_wave_height", "swell_wave_peak_period", "swell_wave_direction",
+    # houle SECONDAIRE (2e train, ex : houle de fond longue sous la mer du vent) — MFWAM
+    "secondary_swell_wave_height", "secondary_swell_wave_period", "secondary_swell_wave_direction",
     "wind_wave_height", "wind_wave_period",
     "sea_level_height_msl",   # marée (niveau de mer rel. niveau moyen) — sans clé !
 ]
@@ -96,6 +98,9 @@ def _fetch_merged(lat: float, lon: float, tz: str, days: int = 3, model: str | N
             "swell_wave_height": _at(mh, "swell_wave_height", i),
             "swell_wave_peak_period": _at(mh, "swell_wave_peak_period", i),
             "swell_wave_direction": _at(mh, "swell_wave_direction", i),
+            "secondary_swell_wave_height": _at(mh, "secondary_swell_wave_height", i),
+            "secondary_swell_wave_period": _at(mh, "secondary_swell_wave_period", i),
+            "secondary_swell_wave_direction": _at(mh, "secondary_swell_wave_direction", i),
             "wind_wave_height": _at(mh, "wind_wave_height", i),
             "wind_wave_period": _at(mh, "wind_wave_period", i),
             "sea_level_height_msl": _at(mh, "sea_level_height_msl", i),

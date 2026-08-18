@@ -33,7 +33,14 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
   // 5 cartes orientées "ce qu'un surfeur regarde" : vague, houle, vent, direction, marée
   const facts = [
     { title: 'Vagues (au bord)', value: `${d.vague.h} m`, label: d.vague.label, factor: d.vague.factor },
-    { title: 'Houle', value: `${d.houle.h} m · ${d.houle.periode}s`, label: d.houle.label, factor: d.houle.clean },
+    {
+      title: 'Houle',
+      value: `${d.houle.h} m · ${d.houle.surf_periode ?? d.houle.periode}s`,
+      label: d.houle.secondaire
+        ? `${d.houle.label} · + fond ${d.houle.secondaire.h}m@${d.houle.secondaire.periode}s`
+        : d.houle.label,
+      factor: d.houle.clean,
+    },
     { title: 'Vent', value: `${Math.round(d.vent.speed)} km/h`, label: d.vent.label, factor: d.vent.factor },
     { title: 'Orientation', value: arrow(d.houle.dir), label: d.orientation.label, factor: d.orientation.factor },
   ]

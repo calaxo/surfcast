@@ -55,6 +55,7 @@ def _fetch_hindcast(lat, lon, tz, date, model=None) -> list[science.Conditions]:
         "latitude": lat, "longitude": lon, "timezone": tz,
         "start_date": date, "end_date": date,
         "hourly": "swell_wave_height,swell_wave_peak_period,swell_wave_direction,"
+                  "secondary_swell_wave_height,secondary_swell_wave_period,secondary_swell_wave_direction,"
                   "wave_height,wave_period,wave_direction,wind_wave_height,sea_level_height_msl",
     }
     if model:
@@ -89,6 +90,11 @@ def _fetch_hindcast(lat, lon, tz, date, model=None) -> list[science.Conditions]:
             wind_speed=_pick(w, "wind_speed_10m", i),
             wind_dir=_pick(w, "wind_direction_10m", i),
             tide_m=_pick(m, "sea_level_height_msl", i),
+            sw1_h=_pick(m, "swell_wave_height", i), sw1_t=_pick(m, "swell_wave_peak_period", i),
+            sw1_dir=_pick(m, "swell_wave_direction", i),
+            sw2_h=_pick(m, "secondary_swell_wave_height", i),
+            sw2_t=_pick(m, "secondary_swell_wave_period", i),
+            sw2_dir=_pick(m, "secondary_swell_wave_direction", i),
         ))
     return out
 
