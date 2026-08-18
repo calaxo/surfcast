@@ -74,6 +74,19 @@ def _angle_diff(a: float, b: float) -> float:
     return min(d, 360.0 - d)
 
 
+def _geomean(values: list[float]) -> float:
+    """Moyenne géométrique = racine n-ième du produit. Contrairement au produit brut,
+    elle NE s'effondre PAS quand on combine plein de facteurs "corrects" (cinq 0.85
+    donnent 0.85, pas 0.44), tout en gardant "un facteur nul → résultat nul"."""
+    vals = [max(0.0, v) for v in values if v is not None]
+    if not vals:
+        return 1.0
+    prod = 1.0
+    for v in vals:
+        prod *= v
+    return prod ** (1.0 / len(vals))
+
+
 def wind_quality(wind_from: float, wind_speed_kmh: float, offshore_dir: float) -> dict:
     """
     Qualité liée au vent, entre 0.3 (défoncé) et 1.0 (glassy/offshore).
@@ -536,7 +549,16 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
     amp = tide_amplitude_label(c.tide_range, spot)
     clean_eff = lv["clean_floor"] + (1 - lv["clean_floor"]) * char["clean"]
     orient_eff = 0.6 + 0.4 * sdir["factor"]
-    raw = 10.0 * sfit * clean_eff * wind["factor"] * orient_eff * tide["factor"]
+    # Agrégation des facteurs QUALITÉ en moyenne GÉOMÉTRIQUE (au lieu d'un produit qui
+    # s'effondre : cinq 0.85 donnaient 0.44 → biais "-3" permanent). La taille (sfit) reste
+    # un GATE dur (plat = pas de surf), et le SHOREBREAK reste un plafond dur (rend injouable
+    # même si tout le reste est bon) → la geomean ne "dilue" pas les jours injouables.
+    if tide["shorebreak"]:
+        quality = _geomean([clean_eff, wind["factor"], orient_eff])
+        raw = 10.0 * sfit * quality * tide["factor"]     # shorebreak = plafond dur
+    else:
+        quality = _geomean([clean_eff, wind["factor"], orient_eff, tide["factor"]])
+        raw = 10.0 * sfit * quality
     score = round(min(10.0, raw), 1)
     too_big = hb > lv["max"]
     label = _surf_label(score, hb, lv, too_big)
