@@ -1,0 +1,171 @@
+# Configuration des spots — tout est transparent et réglable ici.
+# Directions en degrés, convention météo/houle = "direction D'OÙ ça vient".
+#   beach_facing  : direction vers laquelle la plage regarde (vers le large)
+#   swell_window  : plage de directions de houle qui atteignent le spot [min, max]
+#   offshore_dir  : direction du vent offshore idéal (vent de terre qui lisse)
+#   level         : public visé (debutant / tous / confirme)
+#   tide          : marée préférée (indicatif, pour le texte)
+
+spots:
+  la-bouverie-la-palmyre:
+    name: "La Bouverie – La Palmyre"
+    region: "Côte Sauvage d'Arvert"
+    latitude: 45.735
+    longitude: -1.235
+    timezone: "Europe/Paris"
+    beach_facing: 270
+    swell_window: [240, 320]
+    offshore_dir: 67
+    level: "confirme"
+    tide: "mi-marée (montante de préférence)"
+    # Modèle de marée/déferlante (validé par sessions 2026-07-27) :
+    #   slope_low/high = pente de plage effective à basse/pleine mer (Iribarren)
+    #   tide_ideal     = fenêtre de marée idéale, normalisée [0=basse .. 1=pleine]
+    # Pleine mer ici = shorebreak qui dumpe sur la marche → on préfère basse à mi-marée.
+    slope_low: 0.025
+    slope_high: 0.10
+    tide_ideal: [0.1, 0.6]
+    notes: "Beach break exposé plein O. Courants N/S violents. Houle NW idéale, offshore ENE. ⚠️ pleine mer = shorebreak qui claque."
+    # Marnage : seuils vive-eau/morte-eau (m) pour la science backwash (grandes marées).
+    range_vive: 4.2
+    range_morte: 2.5
+    # Écoles de surf + affluence. Pas d'API exploitable (horaires calés sur la marée,
+    # décidés la veille) → infos STABLES saisies main (cf. recherche 2026-08-13).
+    ecoles:
+      - nom: "ESCS"
+        url: "https://www.surf-lapalmyre.com"
+        note: "cours calés sur la marée, communiqués la veille par SMS"
+      - nom: "École de Surf La Bouverie"
+        url: "https://www.labouverie-ecoledesurf.com"
+        note: "présence plage 9h-19h juillet-août"
+    affluence:
+      haute_saison: [7, 8]                     # mois bondés (écoles + enfants)
+      creneaux_charges: ["10:00-12:00", "14:00-18:00"]
+      conseil: "tôt le matin ou après 18h = plus calme (moins d'écoles/enfants sur les pics de marée)"
+    # Raccourcis vers les sites de report (éditable si un slug change) :
+    reports:
+      surf-report: "https://www.surf-report.com/meteo-surf/cote-sauvage-palmyre-s1017.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/charente-maritime/cote-sauvage"
+      allosurf: "https://www.allosurf.net/meteo/surf/cote-sauvage-la-tremblade-meteo-charente-maritime.html"
+
+  grande-cote-saint-palais:
+    name: "La Grande Côte – Saint-Palais"
+    region: "Nord Royan"
+    latitude: 45.665
+    longitude: -1.100
+    timezone: "Europe/Paris"
+    beach_facing: 285
+    swell_window: [250, 330]
+    offshore_dir: 90
+    level: "confirme"
+    tide: "mi-marée"
+    notes: "2,5 km de beach break exposé au N de Saint-Palais. Puissant, prend bien la houle NW. Le plus proche avec de l'engagement."
+
+  pontaillac-royan:
+    name: "Pontaillac – Royan"
+    region: "Royan (conche abritée)"
+    latitude: 45.632
+    longitude: -1.043
+    timezone: "Europe/Paris"
+    beach_facing: 300
+    swell_window: [275, 325]
+    offshore_dir: 120
+    level: "debutant"
+    tide: "toutes"
+    notes: "Conche abritée = vagues modérées, marche toute l'année. Plan de repli quand c'est gros/onshore ailleurs."
+
+  vert-bois-oleron:
+    name: "Vert Bois – Oléron"
+    region: "Île d'Oléron (pont gratuit)"
+    latitude: 45.868
+    longitude: -1.315
+    timezone: "Europe/Paris"
+    beach_facing: 265
+    swell_window: [230, 320]
+    offshore_dir: 85
+    level: "tous"
+    tide: "mi-marée basse à montante"
+    notes: "Spot le plus régulier d'Oléron, exposition directe à la houle. Sections rapides. Houle NW idéale, offshore E."
+    reports:
+      surf-report: "https://www.surf-report.com/meteo-surf/oleron-s1094.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/charente-maritime/vert-bois"
+      allosurf: "https://www.allosurf.net/meteo/surf/vert-bois-meteo-charente-maritime.html"
+
+  chaucre-oleron:
+    name: "Chaucre – Oléron"
+    region: "Île d'Oléron (pointe NO)"
+    latitude: 45.975
+    longitude: -1.410
+    timezone: "Europe/Paris"
+    beach_facing: 290
+    swell_window: [250, 330]
+    offshore_dir: 110
+    level: "confirme"
+    tide: "mi-marée"
+    notes: "Spot sauvage de la pointe NO. Bon quand c'est propre et bien rangé. Offshore ESE."
+
+  # --- Médoc / Gironde (via Bordeaux, ~2h20-2h30) ---
+  lacanau-ocean:
+    name: "Lacanau Océan"
+    region: "Médoc / Gironde"
+    latitude: 44.998
+    longitude: -1.198
+    timezone: "Europe/Paris"
+    beach_facing: 268
+    swell_window: [240, 320]
+    offshore_dir: 88
+    level: "tous"
+    tide: "mi-marée"
+    notes: "LE beach break de référence. Puissant et consistant (La Nord). Houle W, offshore E. Marche quasi toute l'année."
+    reports:
+      surf-report: "https://www.surf-report.com/meteo-surf/lacanau-s1043.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/gironde/lacanau"
+      allosurf: "https://www.allosurf.net/meteo/surf/lacanau-ocean-meteo-gironde.html"
+
+  carcans-ocean:
+    name: "Carcans Océan"
+    region: "Médoc / Gironde"
+    latitude: 45.085
+    longitude: -1.188
+    timezone: "Europe/Paris"
+    beach_facing: 268
+    swell_window: [240, 320]
+    offshore_dir: 88
+    level: "tous"
+    tide: "mi-marée"
+    notes: "Comme Lacanau mais BEAUCOUP moins de monde. Bons tubes quand la houle rentre bien. Houle W/NW, offshore E."
+    reports:
+      surf-report: "https://www.surf-report.com/meteo-surf/carcans-plage-s1042.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/gironde/carcans-plage"
+      allosurf: "https://www.allosurf.net/meteo/surf/carcans-ocean-meteo-gironde.html"
+
+  hourtin-plage:
+    name: "Hourtin Plage"
+    region: "Médoc / Gironde"
+    latitude: 45.223
+    longitude: -1.165
+    timezone: "Europe/Paris"
+    beach_facing: 268
+    swell_window: [240, 320]
+    offshore_dir: 90
+    level: "tous"
+    tide: "mi-marée basse"
+    notes: "Beach break exposé au N du Médoc. Prend la plupart des houles W, vent E/SE. Peu de foule."
+    reports:
+      surf-report: "https://www.surf-report.com/meteo-surf/hourtin-s1029.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/gironde/hourtin-plage"
+      allosurf: "https://www.allosurf.net/meteo/surf/hourtin-ocean-meteo-gironde.html"
+
+  # --- Vendée (au nord, ~2h20-2h30) : capte la houle SW ---
+  bud-bud-longeville:
+    name: "Bud-Bud / Les Conches – Longeville"
+    region: "Vendée"
+    latitude: 46.415
+    longitude: -1.472
+    timezone: "Europe/Paris"
+    beach_facing: 235
+    swell_window: [200, 290]
+    offshore_dir: 60
+    level: "tous"
+    tide: "mi-marée à basse"
+    notes: "Orienté SW → capte la houle W/SW quand le reste est plat. Tubes creux sur bancs de sable, offshore ENE. Bien pour progresser aussi."

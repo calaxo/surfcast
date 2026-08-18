@@ -1,0 +1,13 @@
+# Build context léger
+.git
+.gitignore
+**/node_modules
+frontend/dist
+cache
+docs
+web
+prototype.py
+**/__pycache__
+*.pyc
+deploy
+README.md

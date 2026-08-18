@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-ink font-sans;
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  a { @apply text-accent no-underline; }
+}
+
+@layer components {
+  .card { @apply bg-card border border-line rounded-2xl p-4 md:p-5; }
+  .chip { @apply px-3 py-1 rounded-full text-xs font-semibold; }
+  .formula { @apply bg-card2 border border-line rounded-lg px-3 py-2 font-mono text-[13.5px] my-2 overflow-x-auto; }
+  .rulebox { @apply border-l-[3px] border-accent rounded-r-lg px-3.5 py-2.5 my-2.5; background: linear-gradient(90deg, rgba(56,189,248,.09), transparent); }
+}
+
+/* pastille de score : anneau plein coloré par le tier (rouge=nul ... vert=bon),
+   couleur toujours lisible même à 0 (contrairement à l'ancienne jauge grise). */
+.gauge {
+  width: 54px; height: 54px; border-radius: 50%;
+  display: grid; place-items: center; font-weight: 700; font-size: 18px;
+  border: 4px solid var(--c);
+  background: color-mix(in srgb, var(--c) 14%, #122232);
+  color: var(--c);
+}
+.gauge > span {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center;
+}

@@ -1,0 +1,67 @@
+:root{
+  --bg:#0b1622; --card:#122232; --card2:#0e1b28; --ink:#e8f0f7; --mut:#8aa4bd;
+  --line:#22384f; --good:#37d67a; --ok:#f6c945; --bad:#ff6b6b; --accent:#38bdf8;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.55 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1020px;margin:0 auto;padding:0 16px}
+header{padding:22px 0 6px}
+h1{margin:0;font-size:23px}
+.sub{color:var(--mut);font-size:13px;margin-top:4px}
+h2{font-size:18px;margin:26px 0 6px}
+h3{font-size:15px;margin:18px 0 6px;color:var(--accent)}
+b,strong{color:var(--accent)}
+a{color:var(--accent)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px}
+.tabs{display:flex;gap:6px;margin:16px 0 6px;border-bottom:1px solid var(--line)}
+.tab{padding:9px 14px;cursor:pointer;color:var(--mut);border-bottom:2px solid transparent;font-size:14px}
+.tab.active{color:var(--ink);border-color:var(--accent)}
+.panel{display:none}
+.panel.active{display:block}
+
+.day,.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0}
+.dayhead{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.date{font-weight:600;font-size:16px}.slot{color:var(--mut);font-size:13px}
+.score{display:flex;align-items:center;gap:12px}
+.gauge{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:18px;
+       background:conic-gradient(var(--c) calc(var(--v)*36deg),#1d3247 0)}
+.gauge span{width:42px;height:42px;border-radius:50%;background:var(--card);display:grid;place-items:center}
+.lab{font-size:13px;color:var(--mut)}
+.explain{margin:12px 0 4px;font-size:14.5px}
+.drivers{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}
+.drv{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.drv .t{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.drv .v{font-size:15px;margin-top:3px}
+.bar{height:6px;border-radius:4px;background:#1d3247;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px}
+details{margin-top:12px}summary{cursor:pointer;color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:500}
+.pill{padding:2px 8px;border-radius:20px;font-size:12px;font-weight:600}
+.loading{color:var(--mut);padding:26px 0}
+footer{color:var(--mut);font-size:12px;margin:26px 0 50px}
+
+/* sessions */
+.sess{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.sesscol{flex:1;min-width:240px}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px}
+.tag.obs{background:#38bdf822;color:var(--accent)}
+.tag.good{background:#37d67a22;color:var(--good)}
+.tag.bad{background:#ff6b6b22;color:var(--bad)}
+.agree{font-weight:600}
+.rule{background:linear-gradient(90deg,#38bdf818,transparent);border-left:3px solid var(--accent);
+      padding:10px 14px;border-radius:0 8px 8px 0;margin:10px 0}
+
+/* science / viz */
+.viz{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0}
+.viz canvas{width:100%;max-width:100%;background:var(--card2);border-radius:10px;display:block;margin-top:8px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.big{font-size:20px;font-weight:700}
+.kfig{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:8px 0}
+.kfig div{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center}
+.kfig .n{font-size:18px;font-weight:700}.kfig .l{font-size:11px;color:var(--mut)}
+.formula{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;
+        font-family:ui-monospace,Consolas,monospace;font-size:13.5px;margin:8px 0;overflow-x:auto}
+.note{color:var(--mut);font-size:13px}

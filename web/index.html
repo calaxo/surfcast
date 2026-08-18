@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Surfcast — pourquoi les vagues sont comme ça</title>
+<link rel="stylesheet" href="/style.css">
+</head><body>
+<header><div class="wrap">
+  <h1>🌊 Surfcast</h1>
+  <div class="sub">Pas juste un score : <b>pourquoi</b> les vagues sont comme ça. Données Open-Meteo (MFWAM, GWAM, EWAM).</div>
+  <div class="row">
+    <label>Spot <select id="spot"></select></label>
+    <label>Modèle <select id="model">
+      <option value="">Auto (Open-Meteo)</option>
+      <option value="meteofrance_wave">Météo-France (MFWAM)</option>
+      <option value="gwam">GWAM (DWD)</option>
+      <option value="ewam">EWAM (Europe fin)</option>
+    </select></label>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="forecast">Prévisions</div>
+    <div class="tab" data-tab="sessions">Mes sessions &amp; vérité terrain</div>
+    <div class="tab" data-tab="science">La science</div>
+  </div>
+</div></header>
+
+<main class="wrap">
+  <section id="forecast" class="panel active"><div class="loading">Chargement…</div></section>
+  <section id="sessions" class="panel"><div class="loading">Chargement…</div></section>
+  <section id="science" class="panel"></section>
+</main>
+
+<footer class="wrap">Note = énergie de houle × propreté (période) × vent × orientation. Tout est explicite dans le code (<code>app/science.py</code>). Données : Open-Meteo (modèles MFWAM/GWAM/EWAM) + archive pour le hindcast.</footer>
+
+<script src="/app.js"></script>
+</body></html>
