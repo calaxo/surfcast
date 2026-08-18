@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '@/store'
-import { getForecast, getSessions } from '@/api'
+import { getForecast, getSessions, getBuoy } from '@/api'
 import { daysOf, bestOfDay } from '@/lib/format'
 import DayCard from '@/components/DayCard'
 
@@ -8,6 +8,7 @@ export default function Forecast() {
   const { spot, model, level, config } = useApp()
   const [data, setData] = useState(null)
   const [sessByDate, setSessByDate] = useState({})
+  const [buoy, setBuoy] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -30,6 +31,15 @@ export default function Forecast() {
         setSessByDate(map)
       })
       .catch(() => setSessByDate({}))
+  }, [spot])
+
+  // Nowcast bouée CANDHIS (vérité terrain temps réel) — n'affiche rien sans token/donnée
+  useEffect(() => {
+    if (!spot) return
+    setBuoy(null)
+    getBuoy(spot)
+      .then((r) => setBuoy(r?.buoy || null))
+      .catch(() => setBuoy(null))
   }, [spot])
 
   if (loading || !data)
@@ -55,6 +65,19 @@ export default function Forecast() {
             <span className="text-ink font-semibold">{spotInfo.region}</span>
             {spotInfo.notes ? ` · ${spotInfo.notes}` : ''}
           </div>
+
+          {buoy && (
+            <div className="mt-2 text-[12.5px] rounded-lg bg-accent/10 border border-accent/25 px-2.5 py-1.5">
+              🛟 <b className="text-ink">Bouée {buoy.name}</b>
+              {buoy.dist_km != null && <span className="text-mut"> ({buoy.dist_km} km)</span>} — en ce moment :{' '}
+              {buoy.hs != null && (
+                <b>{buoy.hs} m{buoy.period != null ? ` · ${buoy.period}s` : ''}</b>
+              )}
+              {buoy.dir != null && ` · ${Math.round(buoy.dir)}°`}
+              {buoy.temp != null && ` · eau ${buoy.temp}°C`}
+              {buoy.time && <span className="text-mut"> — {buoy.time}</span>}
+            </div>
+          )}
 
           {Object.keys(reports).length > 0 && (
             <div className="flex gap-1.5 flex-wrap mt-2 items-center">

@@ -19,7 +19,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(__file__))
-from app import sources, science, sessions as sess_mod, daylight as dl  # noqa: E402
+from app import sources, science, sessions as sess_mod, daylight as dl, buoy  # noqa: E402
 
 HERE = os.path.dirname(__file__)
 # Dossier statique servi : en prod = le front React buildé (frontend/dist), sinon le
@@ -171,6 +171,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if u.path == "/api/sessions":
             return self._json(sess_mod.learned_insights(SESSIONS, SPOTS, model=model))
+
+        if u.path == "/api/buoy":
+            # nowcast bouée CANDHIS la plus proche du spot (None si pas de token)
+            spot = SPOTS.get(qs.get("spot", [next(iter(SPOTS))])[0])
+            if not spot:
+                return self._json({"available": False})
+            data = buoy.latest(spot["latitude"], spot["longitude"]) if buoy.available() else None
+            return self._json({"available": buoy.available(), "buoy": data})
 
         # --- statique : sert le SPA buildé (dist) avec fallback SPA sur index.html ---
         return self._serve_static(u.path)

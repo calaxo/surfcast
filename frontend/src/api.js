@@ -24,3 +24,4 @@ export const getOverview = (model = '', level = 'debutant') =>
   getJSON(`/api/overview?model=${encodeURIComponent(model)}&level=${level}`)
 export const getRanking = (level = 'debutant') =>
   getJSON(`/api/ranking?level=${level}`)
+export const getBuoy = (spot) => getJSON(`/api/buoy?spot=${encodeURIComponent(spot)}`)
