@@ -32,9 +32,15 @@ export default function Forecast() {
       .catch(() => setSessByDate({}))
   }, [spot])
 
-  if (loading || !data) return <div className="text-mut py-8">Chargement des données de houle…</div>
+  if (loading || !data)
+    return (
+      <div className="flex items-center justify-center gap-2 text-mut py-16">
+        <span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping" />
+        Chargement des données de houle…
+      </div>
+    )
   const evals = data.evals || []
-  if (!evals.length) return <div className="text-mut py-8">Pas de données.</div>
+  if (!evals.length) return <div className="text-mut py-10 text-center">Pas de données pour ce spot.</div>
 
   const spotInfo = config?.spots?.[spot]
   const reports = spotInfo?.reports || {}
@@ -44,48 +50,51 @@ export default function Forecast() {
   return (
     <div>
       {spotInfo && (
-        <p className="text-mut text-[13px] mt-3">
-          {spotInfo.region} · {spotInfo.notes}
-        </p>
-      )}
-      {Object.keys(reports).length > 0 && (
-        <div className="flex gap-2 flex-wrap mt-2 items-center">
-          <span className="text-mut text-[12px]">Comparer sur :</span>
-          {Object.entries(reports).map(([name, url]) => (
-            <a
-              key={name}
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="chip bg-card border border-line !text-ink hover:border-accent"
-            >
-              {name} ↗
-            </a>
-          ))}
-        </div>
-      )}
-      {(affluence || ecoles.length > 0) && (
-        <div className="card my-3 !py-2.5 text-[13px]">
-          {affluence?.conseil && (
-            <div>
-              👥 <b>Affluence</b> : {affluence.conseil}
-              {affluence.creneaux_charges?.length > 0 && (
-                <span className="text-mut"> (chargé {affluence.creneaux_charges.join(', ')})</span>
-              )}
+        <div className="card !py-3 mt-3 mb-1 text-[13px]">
+          <div className="text-mut leading-snug">
+            <span className="text-ink font-semibold">{spotInfo.region}</span>
+            {spotInfo.notes ? ` · ${spotInfo.notes}` : ''}
+          </div>
+
+          {Object.keys(reports).length > 0 && (
+            <div className="flex gap-1.5 flex-wrap mt-2 items-center">
+              <span className="text-mut text-[12px]">Comparer :</span>
+              {Object.entries(reports).map(([name, url]) => (
+                <a
+                  key={name}
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="chip bg-card2 border border-line !text-ink hover:border-accent transition-colors"
+                >
+                  {name} ↗
+                </a>
+              ))}
             </div>
           )}
-          {ecoles.length > 0 && (
-            <div className="text-mut mt-1">
-              🏫 Écoles :{' '}
-              {ecoles.map((e, i) => (
-                <span key={e.nom}>
-                  {i > 0 && ' · '}
-                  <a href={e.url} target="_blank" rel="noreferrer" className="!text-ink hover:text-accent underline">
-                    {e.nom}
-                  </a>
-                  {e.note ? ` (${e.note})` : ''}
-                </span>
-              ))}
+
+          {(affluence?.conseil || ecoles.length > 0) && (
+            <div className="mt-2.5 pt-2.5 border-t border-line space-y-1 text-[12.5px]">
+              {affluence?.conseil && (
+                <div className="text-mut">
+                  <span className="text-ink">👥 Affluence</span> — {affluence.conseil}
+                  {affluence.creneaux_charges?.length > 0 && ` (chargé ${affluence.creneaux_charges.join(', ')})`}
+                </div>
+              )}
+              {ecoles.length > 0 && (
+                <div className="text-mut">
+                  <span className="text-ink">🏫 Écoles</span> —{' '}
+                  {ecoles.map((e, i) => (
+                    <span key={e.nom}>
+                      {i > 0 && ' · '}
+                      <a href={e.url} target="_blank" rel="noreferrer" className="!text-accent hover:underline">
+                        {e.nom}
+                      </a>
+                      {e.note ? ` (${e.note})` : ''}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

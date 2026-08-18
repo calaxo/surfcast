@@ -48,46 +48,37 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
   const rows = hours.filter((e) => +e.time.slice(11, 13) % 3 === 0)
 
   return (
-    <div className={`card my-3.5 ${isPast ? 'opacity-70 border-dashed' : ''} ${isToday ? 'border-accent/60' : ''}`}>
-      <div className="flex justify-between items-center gap-3 flex-wrap">
-        <div>
-          <div className="font-semibold text-base capitalize flex items-center gap-2">
-            {fmtDate(day)}
+    <div className={`card shadow-card my-3.5 ${isPast ? 'opacity-70 border-dashed' : ''} ${isToday ? 'border-accent/60 ring-1 ring-accent/20' : ''}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-base capitalize">{fmtDate(day)}</span>
             {isToday && (
-              <span className="text-[11px] font-normal px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">
+              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">
                 aujourd'hui
               </span>
             )}
             {isPast && (
-              <span className="text-[11px] font-normal px-1.5 py-0.5 rounded-full bg-line text-mut">
+              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-line text-mut">
                 passé
               </span>
             )}
           </div>
-          <div className="text-mut text-[13px]">
-            {isPast ? 'ce jour-là' : 'meilleur créneau'} {best.time.slice(11, 16)} · vagues ~{best.wave_h} m
+          <div className="font-semibold text-[15px] mt-0.5 first-letter:uppercase" style={{ color: col }}>
+            {best.label}
           </div>
-          {win && (
-            <div className="text-[13px] mt-0.5 text-good">
-              🏄 surfable de {win.from} à {win.to}
-            </div>
-          )}
-          {daylight?.sunrise && (
-            <div className="text-[12px] mt-0.5 text-mut">
-              ☀️ {daylight.sunrise}–{daylight.sunset}
-              <span className="opacity-70"> · dernière lueur {daylight.civil_dusk}</span>
-            </div>
-          )}
+          <div className="text-mut text-[13px] leading-snug">{best.headline}</div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="font-semibold first-letter:uppercase" style={{ color: col }}>
-              {best.label}
-            </div>
-            <div className="text-mut text-[13px]">{best.headline}</div>
-          </div>
-          <Gauge score={best.score} />
-        </div>
+        <Gauge score={best.score} />
+      </div>
+
+      {/* infos clés en chips (créneau · fenêtre surfable · lumière) */}
+      <div className="flex flex-wrap gap-1.5 mt-2.5">
+        <span className="meta">{isPast ? 'ce jour-là' : 'meilleur'} {best.time.slice(11, 16)} · ~{best.wave_h} m</span>
+        {win && <span className="meta text-good border-good/30">🏄 surfable {win.from}–{win.to}</span>}
+        {daylight?.sunrise && (
+          <span className="meta">☀️ {daylight.sunrise}–{daylight.sunset} · lueur {daylight.civil_dusk}</span>
+        )}
       </div>
 
       {sessions?.length > 0 && (

@@ -3,20 +3,40 @@
 @tailwind utilities;
 
 @layer base {
+  html { -webkit-text-size-adjust: 100%; }   /* pas de zoom auto du texte sur mobile */
   body {
-    @apply bg-bg text-ink font-sans;
+    @apply bg-bg text-ink font-sans antialiased;
     margin: 0;
     font-size: 15px;
     line-height: 1.55;
+    /* fond océan discret : dégradé nuit + halo cyan très léger en haut */
+    background:
+      radial-gradient(1100px 420px at 50% -160px, rgba(56,189,248,.10), transparent 70%),
+      var(--tw-bg-opacity, #0b1622);
+    background-color: #0b1622;
+    background-attachment: fixed;
   }
   a { @apply text-accent no-underline; }
+  select {
+    @apply bg-card2 text-ink border border-line rounded-xl px-3 py-2 text-sm;
+    -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238aa4bd' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right .6rem center;
+    padding-right: 2rem;
+  }
+  select:focus { @apply outline-none border-accent; }
 }
 
 @layer components {
   .card { @apply bg-card border border-line rounded-2xl p-4 md:p-5; }
   .chip { @apply px-3 py-1 rounded-full text-xs font-semibold; }
+  /* petit badge d'info neutre (fenêtre surfable, lumière, marée…) */
+  .meta { @apply inline-flex items-center gap-1 rounded-lg bg-card2 border border-line px-2 py-1 text-[12px] text-mut; }
   .formula { @apply bg-card2 border border-line rounded-lg px-3 py-2 font-mono text-[13.5px] my-2 overflow-x-auto; }
   .rulebox { @apply border-l-[3px] border-accent rounded-r-lg px-3.5 py-2.5 my-2.5; background: linear-gradient(90deg, rgba(56,189,248,.09), transparent); }
+  /* barre d'onglets scrollable horizontalement (mobile) sans barre de défilement visible */
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 }
 
 /* pastille de score : anneau plein coloré par le tier (rouge=nul ... vert=bon),

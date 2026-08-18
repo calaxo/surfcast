@@ -13,7 +13,11 @@ export default {
         good: '#37d67a',
         ok: '#f6c945',
         bad: '#ff6b6b',
-        accent: '#38bdf8',
+        accent: '#38bdf8',   // cyan océan (primaire)
+        sunset: '#ff9f45',   // orange coucher de soleil (secondaire, cf. icône)
+      },
+      boxShadow: {
+        card: '0 1px 0 0 rgba(255,255,255,.02) inset, 0 8px 24px -16px rgba(0,0,0,.6)',
       },
       fontFamily: {
         sans: ['system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],

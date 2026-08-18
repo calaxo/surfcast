@@ -29,7 +29,7 @@ function OfflineBadge() {
     ? `données du ${new Date(last).toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
     : 'aucune donnée en cache'
   return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/15 text-amber-300 text-xs border border-amber-500/30">
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-sunset/15 text-sunset text-[11px] font-medium border border-sunset/30 whitespace-nowrap">
       ⚡ Hors-ligne · {txt}
     </span>
   )
@@ -40,65 +40,64 @@ export default function Header() {
   const spots = config?.spots || {}
 
   return (
-    <header className="max-w-5xl mx-auto px-4 pt-6">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold m-0">🌊 Surfcast</h1>
-        <OfflineBadge />
-      </div>
-      <p className="text-mut text-[13px] mt-1">
-        Pas juste un score : <b className="text-accent">pourquoi</b> les vagues sont
-        comme ça. Spots accessibles en journée depuis le point de départ.
-      </p>
+    <header className="sticky top-0 z-20 bg-bg/85 backdrop-blur-md border-b border-line">
+      <div className="max-w-5xl mx-auto px-4 pt-3">
+        {/* marque + statut hors-ligne */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xl leading-none" aria-hidden>🌊</span>
+            <h1 className="text-lg font-bold m-0 tracking-tight">Surfcast</h1>
+            <span className="hidden sm:inline text-mut text-[12px] truncate">
+              — pourquoi les vagues sont comme ça
+            </span>
+          </div>
+          <OfflineBadge />
+        </div>
 
-      <div className="flex gap-3 items-center flex-wrap my-3">
-        <label className="text-sm">
-          Spot{' '}
+        {/* contrôles : spot + niveau */}
+        <div className="flex gap-2 mt-2.5">
           <select
-            className="bg-card text-ink border border-line rounded-lg px-2.5 py-1.5 text-sm"
+            className="flex-1 min-w-0"
             value={spot || ''}
             onChange={(e) => setSpot(e.target.value)}
+            aria-label="Spot"
           >
             {Object.entries(spots).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v.name}
-              </option>
+              <option key={k} value={k}>{v.name}</option>
             ))}
           </select>
-        </label>
-        <label className="text-sm">
-          Niveau{' '}
           <select
-            className="bg-card text-ink border border-line rounded-lg px-2.5 py-1.5 text-sm"
+            className="shrink-0"
             value={level}
             onChange={(e) => setLevel(e.target.value)}
+            aria-label="Niveau"
           >
             {NIVEAUX.map((n) => (
-              <option key={n.value} value={n.value}>
-                {n.label}
-              </option>
+              <option key={n.value} value={n.value}>{n.label}</option>
             ))}
           </select>
-        </label>
-      </div>
+        </div>
 
-      <nav className="flex gap-1.5 border-b border-line">
-        {tabs.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.end}
-            className={({ isActive }) =>
-              `px-3.5 py-2.5 text-sm border-b-2 -mb-px ${
-                isActive
-                  ? 'text-ink border-accent'
-                  : 'text-mut border-transparent hover:text-ink'
-              }`
-            }
-          >
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
+        {/* onglets : scroll horizontal propre sur mobile (fini le débordement) */}
+        <nav className="flex gap-1 mt-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+          {tabs.map((t) => (
+            <NavLink
+              key={t.to}
+              to={t.to}
+              end={t.end}
+              className={({ isActive }) =>
+                `shrink-0 whitespace-nowrap px-3 py-2.5 text-sm border-b-2 -mb-px transition-colors ${
+                  isActive
+                    ? 'text-ink border-accent font-medium'
+                    : 'text-mut border-transparent hover:text-ink'
+                }`
+              }
+            >
+              {t.label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
     </header>
   )
 }
