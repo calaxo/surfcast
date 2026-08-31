@@ -20,6 +20,12 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache")
 FORECAST_TTL = 3 * 3600  # la prévision ne change que quelques fois/jour → cache 3 h
+# Version du SCHÉMA de la réponse mise en cache. À incrémenter dès qu'on ajoute ou
+# retire une variable dans MARINE_VARS / WIND_VARS : sans ça, les fichiers déjà en
+# cache (TTL 3 h, et volume Docker PERSISTANT en prod) continueraient d'être servis
+# sans les nouveaux champs, et la fonctionnalité paraîtrait cassée après déploiement.
+#   v2 : ajout de sea_surface_temperature / temperature_2m / apparent_temperature
+CACHE_VERSION = 2
 
 MARINE_VARS = [
     "wave_height", "wave_period", "wave_direction",
@@ -28,8 +34,13 @@ MARINE_VARS = [
     "secondary_swell_wave_height", "secondary_swell_wave_period", "secondary_swell_wave_direction",
     "wind_wave_height", "wind_wave_period",
     "sea_level_height_msl",   # marée (niveau de mer rel. niveau moyen) — sans clé !
+    "sea_surface_temperature",  # température de l'eau (°C) → choix de combinaison
 ]
-WIND_VARS = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m"]
+# temperature_2m / apparent_temperature : l'air et le ressenti comptent autant que l'eau
+# pour savoir si on va cailler (on passe le plus clair du temps ASSIS sur la planche,
+# torse et tête au vent, pas immergé).
+WIND_VARS = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+             "temperature_2m", "apparent_temperature"]
 
 
 def _get_json(url: str, params: dict) -> dict:
@@ -67,7 +78,7 @@ def merged_hours(lat: float, lon: float, tz: str, days: int = 3, model: str | No
                  past_days: int = 0) -> list[dict]:
     """Fusionne marine + vent par heure. Cache disque TTL pour éviter les appels lents répétés."""
     os.makedirs(CACHE_DIR, exist_ok=True)
-    cpath = os.path.join(CACHE_DIR, f"forecast_{lat}_{lon}_{days}_{past_days}_{model or 'auto'}.json")
+    cpath = os.path.join(CACHE_DIR, f"forecast_v{CACHE_VERSION}_{lat}_{lon}_{days}_{past_days}_{model or 'auto'}.json")
     if os.path.isfile(cpath) and (time.time() - os.path.getmtime(cpath)) < FORECAST_TTL:
         with open(cpath, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -104,9 +115,12 @@ def _fetch_merged(lat: float, lon: float, tz: str, days: int = 3, model: str | N
             "wind_wave_height": _at(mh, "wind_wave_height", i),
             "wind_wave_period": _at(mh, "wind_wave_period", i),
             "sea_level_height_msl": _at(mh, "sea_level_height_msl", i),
+            "sea_surface_temperature": _at(mh, "sea_surface_temperature", i),
             "wind_speed_10m": _at(wh, "wind_speed_10m", wi) if wi is not None else None,
             "wind_direction_10m": _at(wh, "wind_direction_10m", wi) if wi is not None else None,
             "wind_gusts_10m": _at(wh, "wind_gusts_10m", wi) if wi is not None else None,
+            "temperature_2m": _at(wh, "temperature_2m", wi) if wi is not None else None,
+            "apparent_temperature": _at(wh, "apparent_temperature", wi) if wi is not None else None,
         })
     return out
 

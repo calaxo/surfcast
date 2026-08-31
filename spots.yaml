@@ -157,15 +157,68 @@ spots:
       allosurf: "https://www.allosurf.net/meteo/surf/hourtin-ocean-meteo-gironde.html"
 
   # --- Vendée (au nord, ~2h20-2h30) : capte la houle SW ---
-  bud-bud-longeville:
-    name: "Bud-Bud / Les Conches – Longeville"
+  # Les deux plages sont sur le MÊME segment de côte rectiligne, 4 km l'une de
+  # l'autre. Cap de la côte mesuré sur coordonnées réelles : 169° → la plage
+  # regarde 259° (W/WSW) et l'offshore idéal vient de 79° (ENE). C'est cohérent
+  # avec le "vent est/nord-est" donné par plages.tv pour les deux spots.
+  # ⚠️ Elles partagent la même maille du modèle marin Open-Meteo (~5-10 km) : la
+  # prévision brute est identique, seuls la géométrie et le profil de plage les
+  # différencient. Ne pas s'étonner de voir Hs/période/direction rigoureusement
+  # égaux entre les deux.
+  # Marnage mesuré sur 21 j (Open-Meteo) : min 1.46 / médiane 3.16 / max 4.60 m,
+  # soit ~5 % de plus qu'à La Bouverie (1.38 / 3.05 / 4.35). Les seuils vive/morte
+  # sont donc mis à l'échelle depuis les 4.2/2.5 validés là-bas → 4.4 / 2.6, pour
+  # conserver la même proportion de jours classés vive-eau et morte-eau.
+
+  les-conches-longeville:
+    name: "Les Conches – Longeville-sur-Mer"
     region: "Vendée"
-    latitude: 46.415
-    longitude: -1.472
+    latitude: 46.3907
+    longitude: -1.4857
     timezone: "Europe/Paris"
-    beach_facing: 235
-    swell_window: [200, 290]
-    offshore_dir: 60
+    beach_facing: 259
+    swell_window: [220, 300]
+    offshore_dir: 79
     level: "tous"
-    tide: "mi-marée à basse"
-    notes: "Orienté SW → capte la houle W/SW quand le reste est plat. Tubes creux sur bancs de sable, offshore ENE. Bien pour progresser aussi."
+    tide: "mi-marée montante à pleine"
+    # Beach break sur bancs de sable, gauches et droites, praticable de 0,5 à 3 m.
+    # Pente douce : la marée haute y donne de belles vagues, pas un shorebreak
+    # (contrairement à La Terrière juste au sud) → slope_high volontairement bas,
+    # sous le seuil de 0.06 qui déclenche l'alerte "dumpe" à marée haute.
+    slope_low: 0.020
+    slope_high: 0.070
+    tide_ideal: [0.35, 0.85]
+    range_vive: 4.4
+    range_morte: 2.6
+    notes: "Beach break régulier sur bancs de sable, gauches et droites, tous niveaux. Orienté W/SW → capte la houle W/SW quand le reste est plat. Offshore ENE. Connu des surfeurs sous le nom de Bud-Bud."
+    reports:
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/vendee/longeville-sur-mer/plage-des-conches"
+      surf-spot: "https://www.surf-spot.fr/longeville-sur-mer/plage-des-conches/"
+      plages-tv: "https://www.plages.tv/surf/spot/plage-des-conches-bud-bud-longeville-sur-mer-85560"
+
+  la-terriere-la-tranche:
+    name: "La Terrière – La Tranche-sur-Mer"
+    region: "Vendée"
+    latitude: 46.3558
+    longitude: -1.4758
+    timezone: "Europe/Paris"
+    beach_facing: 259
+    swell_window: [220, 300]
+    offshore_dir: 79
+    level: "tous"
+    tide: "mi-marée montante"
+    # Profil de plage RAIDE, réputée pour son shorebreak qui claque près du bord
+    # (même famille que La Bouverie, d'où des pentes proches). slope_high 0.105
+    # fait que marée haute + houle courte (<9 s) déclenche l'alerte shorebreak du
+    # modèle — c'est exactement le comportement décrit par les guides du spot.
+    slope_low: 0.025
+    slope_high: 0.105
+    tide_ideal: [0.30, 0.70]
+    range_vive: 4.4
+    range_morte: 2.6
+    notes: "Plage la plus au nord de La Tranche, ~2 km de sable. Shorebreak puissant près du bord, sensations fortes. ⚠️ Nombreuses baïnes → courants forts, à surveiller. Houle W/NW de période moyenne à longue, offshore ENE, montante de préférence. Bonne saison mai-septembre."
+    reports:
+      surf-report: "https://www.surf-report.com/meteo-surf/la-tranche-mer-s1041.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/vendee/la-tranche-sur-mer/la-terriere"
+      allosurf: "https://www.allosurf.net/meteo/surf/la-terriere-meteo-ww3-27-gfs-27-1-a-16-jours-1153.html"
+      plages-tv: "https://www.plages.tv/surf/spot/plage-de-la-terriere-la-tranche-sur-mer-85360"

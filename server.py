@@ -54,7 +54,11 @@ def build_evals(spot, days=3, model=None, level="debutant", past_days=0):
             sw1_h=h.get("swell_wave_height"), sw1_t=h.get("swell_wave_peak_period"),
             sw1_dir=h.get("swell_wave_direction"),
             sw2_h=h.get("secondary_swell_wave_height"), sw2_t=h.get("secondary_swell_wave_period"),
-            sw2_dir=h.get("secondary_swell_wave_direction")))
+            sw2_dir=h.get("secondary_swell_wave_direction"),
+            # thermique (conseil de combinaison uniquement, pas de score)
+            water_temp=h.get("sea_surface_temperature"),
+            air_temp=h.get("temperature_2m"),
+            feels_like=h.get("apparent_temperature")))
     # Marée annotée PAR JOUR (normalisation basse/pleine + marnage corrects par jour,
     # sinon un lot de 6 jours mélange vive-eau et morte-eau).
     by_day = {}

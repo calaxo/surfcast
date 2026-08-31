@@ -452,6 +452,111 @@ def energy_score(power_kw_m: float) -> dict:
 # 6. ÉVALUATION COMPLÈTE D'UN CRÉNEAU HORAIRE
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# 4c. THERMIQUE : quelle combinaison, et est-ce que je vais cailler ?
+# --------------------------------------------------------------------------
+# N'ENTRE PAS dans le score : une eau à 12 °C ne rend pas les vagues moins bonnes,
+# elle rend la session moins agréable. C'est un indicateur de CONFORT, séparé.
+#
+# Fenêtres de confort en °C d'eau RESSENTIE (voir plus bas), pour une session
+# d'environ 1 h 30. Ce sont les plages usuelles des fabricants, resserrées sur
+# l'Atlantique français (eau agitée = on se refroidit plus vite qu'en piscine).
+
+WETSUITS = {
+    "boardshort": (24.0, 99.0, "boardshort"),
+    "shorty":     (21.0, 24.5, "shorty / top néoprène"),
+    "3/2":        (16.5, 22.0, "combinaison 3/2"),
+    "4/3":        (12.5, 18.0, "combinaison 4/3"),
+    "5/4":        (8.0, 14.0, "combinaison 5/4"),
+}
+# Les fenêtres se CHEVAUCHENT volontairement : entre 16,5 et 18 °C une 3/2 et une 4/3
+# conviennent toutes les deux, c'est une affaire de frilosité et de durée de session.
+DEFAULT_SUIT = "3/2"
+
+
+def felt_water_temp(water: float, air: float, wind_kmh: float) -> float:
+    """Température d'eau « ressentie » sur une session.
+
+    On ne surfe pas immergé en permanence : on passe le plus clair du temps ASSIS
+    sur la planche, torse et tête à l'air. Quand l'air est plus froid que l'eau et
+    qu'il vente, le corps se refroidit BEAUCOUP plus vite que ce que la seule
+    température de l'eau laisse croire — c'est l'évaporation sur le néoprène mouillé.
+
+    On applique donc une pénalité, plafonnée à 3 °C pour qu'elle ne domine jamais la
+    mesure réelle de l'eau. Air plus chaud que l'eau → aucune pénalité (cas de l'été).
+    """
+    if water is None:
+        return None
+    if air is None or wind_kmh is None or air >= water:
+        return water
+    ecart = water - air
+    vent = min(1.0, wind_kmh / 30.0)          # 30 km/h = effet plein
+    penalite = min(3.0, 0.25 * ecart * (0.4 + 0.6 * vent))
+    return round(water - penalite, 1)
+
+
+def wetsuit_advice(water: float, air: float, wind_kmh: float, suit: str = DEFAULT_SUIT) -> dict:
+    """Confort thermique pour LA combinaison de l'utilisateur + ce qu'il faudrait idéalement."""
+    if water is None:
+        return {"water": None, "why": "température de l'eau non disponible"}
+
+    felt = felt_water_temp(water, air, wind_kmh)
+    lo, hi, nom = WETSUITS.get(suit, WETSUITS[DEFAULT_SUIT])
+
+    # Combinaison idéale = celle dont la fenêtre contient le ressenti (la plus chaude
+    # qui convient, en partant des plus légères).
+    ideal = None
+    for k in ("boardshort", "shorty", "3/2", "4/3", "5/4"):
+        klo, khi, knom = WETSUITS[k]
+        if klo <= felt <= khi:
+            ideal = k
+            break
+    if ideal is None:
+        ideal = "5/4" if felt < 8.0 else "boardshort"
+
+    # Accessoires : ce sont les extrémités qui lâchent en premier.
+    accessoires = []
+    if felt < 15.0:
+        accessoires.append("chaussons")
+    if felt < 13.0:
+        accessoires.append("gants")
+    if felt < 11.0:
+        accessoires.append("cagoule")
+
+    if felt > hi:
+        verdict, ok = "trop chaud", True
+        why = (f"eau à {water:.1f} °C : ta {nom} sera trop chaude. "
+               "Pas gênant — laisse entrer un peu d'eau au col pour te rafraîchir, "
+               f"ou passe en {WETSUITS[ideal][2]}.")
+    elif felt >= lo + 1.5:
+        verdict, ok = "idéal", True
+        why = f"eau à {water:.1f} °C : ta {nom} est pile dans sa fenêtre, session confortable."
+    elif felt >= lo:
+        verdict, ok = "limite basse", True
+        why = (f"eau ressentie {felt:.1f} °C : ta {nom} passe encore, mais tu es en bas de "
+               "sa plage — prévois une session plus courte"
+               + (f", et des {' + '.join(accessoires)}" if accessoires else "") + ".")
+    else:
+        verdict, ok = "trop froid", False
+        manque = lo - felt
+        why = (f"eau ressentie {felt:.1f} °C, soit {manque:.1f} °C sous la limite de ta {nom} "
+               f"({lo:.0f} °C) : tu vas cailler. Il faudrait une {WETSUITS[ideal][2]}"
+               + (f" + {' + '.join(accessoires)}" if accessoires else "") + ".")
+
+    # Le vent mérite d'être signalé quand c'est LUI qui fait basculer le confort.
+    note_vent = None
+    if felt is not None and water - felt >= 1.0:
+        note_vent = (f"L'eau est à {water:.1f} °C mais l'air à {air:.0f} °C avec "
+                     f"{wind_kmh:.0f} km/h de vent : entre deux séries tu ressentiras "
+                     f"plutôt {felt:.1f} °C.")
+
+    return {"water": round(water, 1), "air": round(air, 1) if air is not None else None,
+            "felt": felt, "suit": suit, "suit_label": nom, "verdict": verdict, "ok": ok,
+            "ideal": ideal, "ideal_label": WETSUITS[ideal][2],
+            "accessoires": accessoires, "why": why, "note_vent": note_vent,
+            "limite_basse": lo, "limite_haute": hi}
+
+
 @dataclass
 class Conditions:
     """Données brutes d'un créneau (une heure)."""
@@ -474,6 +579,10 @@ class Conditions:
     sw2_h: float = None
     sw2_t: float = None
     sw2_dir: float = None
+    # Thermique : sert UNIQUEMENT au conseil de combinaison, jamais au score.
+    water_temp: float = None   # température de l'eau (°C)
+    air_temp: float = None     # température de l'air à 2 m (°C)
+    feels_like: float = None   # ressenti air (°C, inclut déjà le vent côté Open-Meteo)
 
 
 @dataclass
@@ -578,6 +687,8 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
                   "label": tide["label"], "factor": tide["factor"], "why": tide["why"],
                   "shorebreak": tide["shorebreak"], "amplitude": amp["label"]},
         "energie": {"value": round(power, 1), "unit": "kW/m", "label": power_label(power)},
+        # Confort thermique : informatif, VOLONTAIREMENT hors du calcul du score.
+        "thermique": wetsuit_advice(c.water_temp, c.air_temp, c.wind_speed, spot.get("suit", DEFAULT_SUIT)),
     }
 
     headline = build_headline(score, hb, lv, char, wind, sdir, too_big, tide)

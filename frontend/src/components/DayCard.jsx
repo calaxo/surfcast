@@ -19,6 +19,15 @@ function surfWindow(hours, daylight) {
   return { from: ok[0].time.slice(11, 16), to: ok[ok.length - 1].time.slice(11, 16), n: ok.length }
 }
 
+// Confort thermique : volontairement PAS un driver du score (la température de l'eau
+// ne change pas la qualité de la vague), donc pas de barre colorée par un facteur —
+// juste une puce d'info + une phrase quand il y a quelque chose à dire.
+function thermoColor(v) {
+  if (v === 'idéal') return 'var(--good)'
+  if (v === 'trop froid') return 'var(--bad)'
+  return 'var(--ok)'
+}
+
 // Un petit accord ressenti (0-5 → /10) vs modèle
 function agreeColor(a) {
   return a === "d'accord" ? 'var(--good)' : a === 'écart moyen' ? 'var(--ok)' : 'var(--bad)'
@@ -86,7 +95,34 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
         {daylight?.sunrise && (
           <span className="meta">☀️ {daylight.sunrise}–{daylight.sunset} · lueur {daylight.civil_dusk}</span>
         )}
+        {d.thermique?.water != null && (
+          <span
+            className="meta"
+            style={{ color: thermoColor(d.thermique.verdict), borderColor: thermoColor(d.thermique.verdict) + '55' }}
+            title={d.thermique.why}
+          >
+            🌡️ eau {d.thermique.water}°C
+            {d.thermique.felt != null && d.thermique.felt < d.thermique.water &&
+              ` (ressenti ${d.thermique.felt}°)`}
+            {' · '}{d.thermique.suit} {d.thermique.verdict}
+          </span>
+        )}
       </div>
+
+      {/* Bandeau réservé aux cas qui COMPTENT : le froid. Une eau trop chaude ne gêne
+          pas (il suffit de laisser entrer un peu d'eau), et répéter l'info sur chaque
+          carte de la semaine noyait la page. La puce ci-dessus reste, elle, toujours
+          visible et suffit pour le cas "trop chaud". */}
+      {d.thermique?.water != null &&
+        (d.thermique.verdict === 'trop froid' || d.thermique.verdict === 'limite basse') && (
+        <div className="text-[13px] leading-snug mt-2 rounded-lg px-3 py-2 border"
+             style={{ color: thermoColor(d.thermique.verdict),
+                      borderColor: thermoColor(d.thermique.verdict) + '40',
+                      background: thermoColor(d.thermique.verdict) + '12' }}>
+          🧥 {d.thermique.why}
+          {d.thermique.note_vent && <div className="text-mut mt-1">{d.thermique.note_vent}</div>}
+        </div>
+      )}
 
       {sessions?.length > 0 && (
         <div className="mt-2.5 space-y-1.5">
