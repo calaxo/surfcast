@@ -222,3 +222,53 @@ spots:
       surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/vendee/la-tranche-sur-mer/la-terriere"
       allosurf: "https://www.allosurf.net/meteo/surf/la-terriere-meteo-ww3-27-gfs-27-1-a-16-jours-1153.html"
       plages-tv: "https://www.plages.tv/surf/spot/plage-de-la-terriere-la-tranche-sur-mer-85360"
+
+  # --- Spot de REPLI : ne marche que quand c'est trop gros ailleurs ---------
+  # L'Embarcadère est au fond de l'Anse du Maupas, à l'abri : la côte y regarde le
+  # SUD alors que la houle utile vient de l'OUEST. C'est tout l'intérêt du spot, et
+  # c'est aussi ce qui oblige à utiliser shelter_short / shelter_long.
+  #
+  # Sans ces clés, le modèle lui donnerait la taille du LARGE (même maille Open-Meteo
+  # que La Terrière, 4 km plus loin) : 4,5 m au large → une "vague" de 5,8 m au fond
+  # d'une anse, ce qui n'a aucun sens. Avec l'abri calibré :
+  #     4,5 m @ 13,5 s au large -> 2,40 m au spot  (LA session décrite par les guides)
+  #     5,0 m @ 14,0 s          -> 2,75 m
+  #     2,5 m @ 11,0 s          -> 1,12 m
+  #     2,2 m @  9,2 s          -> 0,77 m  (ne marche pas)
+  #     1,8 m @  7,0 s          -> 0,42 m  (plat)
+  # ce qui reproduit bien le "ne fonctionne réellement qu'une vingtaine de fois par an".
+  #
+  # La dépendance à la PÉRIODE est la vraie physique : une houle longue diffracte et
+  # entre dans la baie, un clapot court n'y arrive jamais quelle que soit sa hauteur.
+  # D'où 13-14 s exigés par les guides du spot.
+  l-embarcadere-la-tranche:
+    name: "L'Embarcadère – La Tranche-sur-Mer"
+    region: "Vendée (spot de repli)"
+    latitude: 46.3438
+    longitude: -1.4303
+    timezone: "Europe/Paris"
+    # La plage regarde le sud (fond d'anse), mais la houle qui marche arrive de
+    # l'ouest en contournant la pointe : beach_facing et swell_window sont donc
+    # volontairement décorrélés ici, contrairement aux spots exposés.
+    beach_facing: 190
+    swell_window: [225, 290]
+    offshore_dir: 10
+    level: "confirme"
+    tide: "mi-marée montante à pleine"
+    # L'anse est abritée de la houle à marée basse : il faut de l'eau pour que ça
+    # rentre. Pas de shorebreak ici (slope_high sous le seuil de 0.06) : c'est une
+    # longue droite qui déroule, pas une vague qui dumpe.
+    slope_low: 0.030
+    slope_high: 0.055
+    tide_ideal: [0.45, 0.95]
+    range_vive: 4.4
+    range_morte: 2.6
+    # Abri : fraction de la houle du large qui entre, selon la période.
+    shelter_short: 0.10      # à 6 s : quasiment rien ne rentre
+    shelter_long: 0.35       # à 14 s : la houle longue s'engouffre dans la baie
+    notes: "⭐ LA plus longue vague de Vendée : droite rapide et creuse de +200 m en 3-4 sections, devant la jetée. Spot de repli légendaire — ne marche qu'une vingtaine de fois par an, sur d'énormes houles d'W à SW (4-5 m, 13-14 s) qui s'engouffrent dans la baie, cassent sur les récifs au large et reforment au bord entre la jetée et les bateaux. Vent idéal secteur N. ⚠️ Niveau confirmé : surf-report annonce « tous niveaux », mais une droite creuse et rapide sur récif par 4 m de houle ne l'est pas."
+    reports:
+      surf-report: "https://www.surf-report.com/surf-info/embarcadere-s1031.html"
+      surf-sentinel: "https://www.surf-sentinel.com/surf-report/france/vendee/la-tranche-sur-mer/lembarcadere"
+      surf-spot: "https://www.surf-spot.fr/la-tranche-sur-mer/l-embarcadere/"
+      allosurf: "https://www.allosurf.net/infos/surf/plage-la-tranche-sur-mer-la-jetee-spot-1486.html"

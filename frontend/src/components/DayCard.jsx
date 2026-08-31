@@ -45,9 +45,14 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
     {
       title: 'Houle',
       value: `${d.houle.h} m · ${d.houle.surf_periode ?? d.houle.periode}s`,
-      label: d.houle.secondaire
-        ? `${d.houle.label} · + fond ${d.houle.secondaire.h}m@${d.houle.secondaire.periode}s`
-        : d.houle.label,
+      label:
+        // Spot abrité : afficher la houle du large sans dire ce qui entre vraiment
+        // serait trompeur (4 m au large ≠ 4 m au fond d'une anse).
+        (d.houle.abri
+          ? `${d.houle.label} · abri ×${d.houle.abri} → ${d.houle.h_spot} m ici`
+          : d.houle.secondaire
+            ? `${d.houle.label} · + fond ${d.houle.secondaire.h}m@${d.houle.secondaire.periode}s`
+            : d.houle.label),
       factor: d.houle.clean,
     },
     { title: 'Vent', value: `${Math.round(d.vent.speed)} km/h`, label: d.vent.label, factor: d.vent.factor },

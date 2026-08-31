@@ -169,6 +169,37 @@ def breaking_height(hs: float, period: float) -> float:
     return hs * 0.56 * (hs / L0) ** (-0.2)
 
 
+def shelter_factor(period: float, spot: dict) -> float:
+    """Fraction de la houle du LARGE qui atteint réellement le spot (1.0 = plein exposé).
+
+    Pourquoi c'est nécessaire : Open-Meteo donne le Hs d'une maille de ~5-10 km, donc
+    la houle AU LARGE. Pour un beach break exposé c'est une bonne approximation. Pour un
+    spot au fond d'une anse, c'est faux : la houle doit contourner une pointe pour entrer,
+    et elle y perd l'essentiel de son énergie. Sans correction, un spot abrité afficherait
+    la même taille que la plage exposée d'à côté, et paraîtrait surfable les jours où il
+    est plat.
+
+    La correction dépend de la PÉRIODE, et c'est là qu'est la physique : une houle longue
+    diffracte et réfracte bien mieux qu'un clapot court. C'est exactement ce que décrivent
+    les guides de L'Embarcadère — il faut 13-14 s pour que ça rentre dans la baie, une mer
+    du vent de 7 s n'y arrive jamais, quelle que soit sa hauteur au large.
+
+    Spot sans les clés shelter_* → 1.0, comportement inchangé (tous les spots existants).
+    """
+    lo = spot.get("shelter_short")
+    hi = spot.get("shelter_long")
+    if lo is None and hi is None:
+        return 1.0
+    lo = 1.0 if lo is None else float(lo)
+    hi = 1.0 if hi is None else float(hi)
+    t_lo = float(spot.get("shelter_t_short", 6.0))
+    t_hi = float(spot.get("shelter_t_long", 14.0))
+    if period is None or t_hi <= t_lo:
+        return (lo + hi) / 2.0
+    x = max(0.0, min(1.0, (period - t_lo) / (t_hi - t_lo)))
+    return lo + (hi - lo) * x
+
+
 def wave_size_label(hb: float) -> dict:
     """Adjectif de taille + facteur 0..1 pour la barre (petit = barre basse = rouge)."""
     if hb < 0.4:
@@ -629,11 +660,16 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
     dom, sw2 = dominant_swell(c)
     surf_t = dom[1] if dom else c.swell_period
     surf_dir = dom[2] if (dom and dom[2] is not None) else c.swell_dir
-    power = wave_power_kw_m(c.swell_h, c.swell_period)
+    # Abri : fraction de la houle du large qui entre réellement (1.0 pour un spot exposé).
+    # Appliqué AVANT le calcul de taille et de puissance, sinon un spot d'anse hériterait
+    # de la houle de la plage exposée voisine (même maille du modèle).
+    shelter = shelter_factor(surf_t, spot)
+    hs_eff = c.swell_h * shelter
+    power = wave_power_kw_m(hs_eff, c.swell_period)
     char = swell_character(surf_t)
     wind = wind_quality(c.wind_dir, c.wind_speed, spot["offshore_dir"])
     sdir = swell_direction_quality(surf_dir, spot["swell_window"])
-    hb = breaking_height(c.swell_h, c.swell_period)
+    hb = breaking_height(hs_eff, c.swell_period)
     size = wave_size_label(hb)
 
     # Plancher vent selon le niveau : l'onshore gêne moins un débutant (mousse/reforms)
@@ -675,7 +711,11 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
     drivers = {
         # la barre "Vagues" reflète l'ADÉQUATION à ton niveau (vert = idéale pour toi)
         "vague": {"h": round(hb, 2), "label": size["label"], "factor": round(sfit, 2)},
-        "houle": {"h": c.swell_h, "periode": c.swell_period, "dir": c.swell_dir,
+        # h = houle AU LARGE (ce que donnent les sites de report) ; h_spot = ce qui entre
+        # vraiment quand le spot est abrité. Egaux si shelter == 1.
+        "houle": {"h": c.swell_h, "h_spot": round(hs_eff, 2) if shelter < 1.0 else None,
+                  "abri": round(shelter, 2) if shelter < 1.0 else None,
+                  "periode": c.swell_period, "dir": c.swell_dir,
                   "label": char["label"], "clean": char["clean"],
                   "surf_periode": round(surf_t, 1) if surf_t else None,
                   "secondaire": ({"h": round(sw2[0], 2), "periode": round(sw2[1], 1),
