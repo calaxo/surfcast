@@ -220,6 +220,62 @@ function RayleighViz() {
   )
 }
 
+// ---- Viz 4 : énergie — kJ/m² vs kW/m, et "à quoi équivaut cette houle à 8 s ?" ----
+// Sert à démonter le piège "1 m à 17 s = 4,5 m à 8 s" lu sur un site de report : ce
+// chiffre sort d'une énergie ∝ H·λ (faux). La vraie densité est ∝ H², le flux ∝ H²·T.
+function EnergyEquivViz() {
+  const [H, setH] = useState(1.0)
+  const [T, setT] = useState(17)
+  const rho = 1025, g = 9.81
+  const density = (h) => (rho * g * h * h) / 8 / 1000 // kJ/m²
+  const flux = (h, t) => 0.49 * h * h * t // kW/m
+  const hb = (h, t) => 0.56 * h * Math.pow(h / (1.56 * t * t), -0.2)
+  const P = flux(H, T)
+  const Heq = Math.sqrt(P / (0.49 * 8)) // même flux à 8 s
+  const Hwrong = (H * T * T) / 64 // ce que donne la "formule" H·λ (λ ∝ T²) à 8 s
+  const Fig = ({ n, l, color }) => (
+    <div className="bg-card2 border border-line rounded-xl px-2.5 py-2 text-center">
+      <div className="text-lg font-bold" style={color ? { color } : undefined}>{n}</div>
+      <div className="text-[11px] text-mut">{l}</div>
+    </div>
+  )
+  return (
+    <div className="card my-3.5">
+      <h3 className="text-[15px] font-semibold text-accent mt-0 mb-1.5">
+        À quoi équivaut cette houle… ramenée à 8 s ?
+      </h3>
+      <div className="grid sm:grid-cols-2 gap-3 my-2 text-sm">
+        <label className="block">
+          Hauteur H = {H.toFixed(1)} m
+          <input type="range" min="0.3" max="4" step="0.1" value={H} onChange={(e) => setH(+e.target.value)} className="w-full accent-accent" />
+        </label>
+        <label className="block">
+          Période T = {T} s
+          <input type="range" min="5" max="20" step="1" value={T} onChange={(e) => setT(+e.target.value)} className="w-full accent-accent" />
+        </label>
+      </div>
+      <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(120px,1fr))]">
+        <Fig n={`${density(H).toFixed(1)} kJ/m²`} l="densité d'énergie (∝ H², sans T)" />
+        <Fig n={`${P.toFixed(1)} kW/m`} l="flux d'énergie (∝ H²·T) — ce qu'on affiche" color="#38bdf8" />
+        <Fig n={`${hb(H, T).toFixed(2)} m`} l="hauteur déferlante Hb (Komar)" />
+      </div>
+      <div className="grid gap-2.5 mt-2.5 [grid-template-columns:repeat(auto-fit,minmax(120px,1fr))]">
+        <Fig n={`${Heq.toFixed(2)} m @ 8 s`} l={`même flux · Hb ${hb(Heq, 8).toFixed(2)} m (identique)`} color="#37d67a" />
+        <Fig n={`${Hwrong.toFixed(1)} m @ 8 s`} l="avec la formule H·λ (fausse)" color="#ff6b6b" />
+      </div>
+      <div className="rulebox">
+        🔧 <b className="text-accent">Le piège</b> : « 1 m à 17 s ≡ 4,5 m à 8 s » sort d'une énergie
+        ∝ H·λ/2 (donc ∝ H·T²). Or l'énergie est en <b className="text-accent">H²</b> et le flux en{' '}
+        <b className="text-accent">H²·T</b> : 1 m à 17 s ≡ <b className="text-accent">1,46 m à 8 s</b>,
+        et Komar donne la <b className="text-accent">même hauteur déferlante</b> pour les deux
+        (~1,9 m) — la cohérence est là. Même erreur pour « +20 % de période = +44 % » : c'est{' '}
+        <b className="text-accent">+20 %</b>. Le message de fond reste vrai : la période compte
+        autant que la hauteur, pas 3× plus.
+      </div>
+    </div>
+  )
+}
+
 const H3 = ({ children }) => (
   <h3 className="text-[15px] font-semibold text-accent mt-5 mb-1.5">{children}</h3>
 )
@@ -342,6 +398,70 @@ export default function Science() {
         <li><b className="text-accent">Webcams</b> : la vérité que les modèles ne donnent pas.</li>
         <li><b className="text-accent">Spectre directionnel</b> : pic étroit = houle propre d'une tempête ; tache large = mer du vent.</li>
       </ol>
+
+      <H3>8. L'énergie : kJ, kW/m — et le piège du « 4,5 m »</H3>
+      <p>
+        Les sites de report parlent d'« énergie » en kJ, sans toujours dire de quoi. Il y a
+        deux grandeurs, et elles ne disent pas la même chose :
+      </p>
+      <div className="formula">
+        densité E = ρ·g·H²/8 (kJ/m²) — ne dépend <b className="text-accent">que de H</b> |
+        flux P = E·Cg ≈ <b className="text-accent">0,49·H²·T</b> (kW/m) — ce qui arrive sur la
+        plage chaque seconde
+      </div>
+      <p>
+        Le <b className="text-accent">flux</b> est le bon indicateur de « jus » : une seconde de
+        période en plus, c'est ~+10 % de flux autour de 10 s (∝ T), et ~+3-4 % de hauteur
+        déferlante (∝ T⁰·⁴). C'est lui qu'on affiche (⚡ kW/m) sur chaque carte-jour, et c'est
+        sur lui qu'on apprend, spot par spot, la plage de <b className="text-accent">tes</b>{' '}
+        bonnes sessions (onglet Sessions) — plutôt que de deviner « ça marche à partir de
+        100 kJ ».
+      </p>
+      <EnergyEquivViz />
+
+      <H3>9. Mer « rangée » ou « chantier » : l'étalement directionnel</H3>
+      <p>
+        Une houle née d'une seule tempête lointaine arrive <b className="text-accent">triée</b>{' '}
+        : une direction, une période → des lignes propres, des pics prévisibles. Quand deux
+        trains de houle de directions différentes se croisent, ou que la mer du vent locale
+        s'ajoute, les crêtes se croisent, les vagues ferment et se dédoublent : c'est le{' '}
+        <b className="text-accent">spectre directionnel étalé</b> des pros. Open-Meteo ne fournit
+        pas l'étalement, mais on l'approche avec ce qu'on a :
+      </p>
+      <div className="formula">
+        part d'énergie de la mer du vent = H²(mer du vent) / H²(total) | écart de direction
+        entre houle primaire et secondaire (quand la 2ᵉ pèse ≥ 40 % de la 1ʳᵉ)
+      </div>
+      <div className="rulebox">
+        〰 <b className="text-accent">Bien rangée</b> : une houle dominante, une direction.{' '}
+        <b className="text-accent">Un peu mélangée</b> : houle + mer du vent se partagent
+        l'énergie. <b className="text-accent">Chantier</b> : mer croisée, pics qui se croisent,
+        vagues qui ferment. Indicateur <i>informatif</i> pour l'instant : il n'entre pas dans la
+        note tant qu'il n'est pas calibré sur des sessions « mer croisée » loguées.
+      </div>
+
+      <H3>10. Bancs de sable et baïnes : pourquoi le même spot change d'une semaine à l'autre</H3>
+      <p>
+        Sur un beach break, la vague casse là où le fond <b className="text-accent">remonte
+        vite</b>. Ce relief est fait par l'eau elle-même : là où ça casse fort, la mer est
+        « poussée » plus haut (set-up), l'eau s'évacue par les points faibles → courants
+        d'alimentation → un <b className="text-accent">chenal</b> se creuse (la baïne) et le
+        sable arraché va former le <b className="text-accent">banc</b> à côté. La boucle
+        s'auto-entretient à chaque marée et chaque train de houle : un banc « vit » quelques
+        semaines, le pic se déplace, puis le chenal s'élargit et tout se dilue. Le banc idéal a
+        une <b className="text-accent">marche</b> franche devant lui — d'où un pic bien identifié
+        juste à côté du courant.
+      </p>
+      <div className="rulebox">
+        🔎 <b className="text-accent">Ce que le modèle ne voit pas</b> : sa maille fait 5-10 km,
+        il ne connaît pas le banc de cette semaine. La note dit si la houle, le vent et la
+        marée sont bons ; <b className="text-accent">où</b> ça casse le mieux, c'est ton
+        observation depuis la dune (10 min avant de te changer) et tes sessions loguées — c'est
+        exactement pour ça que la vérité terrain compte autant que la prévision. Rappel utile :
+        à basse mer de vive-eau, les baïnes se vident → backwash (déjà signalé dans l'explication
+        du jour), et la baïne est aussi ta sortie au large la plus économique quand tu sais la
+        lire.
+      </div>
     </div>
   )
 }

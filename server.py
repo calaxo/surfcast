@@ -75,6 +75,67 @@ def evals_to_dicts(evals):
              "drivers": e.drivers, "explanation": e.explanation} for e in evals]
 
 
+def tide_events(evals):
+    """Pleines et basses mers par jour, à partir du niveau de mer HORAIRE des evals.
+
+    Un extremum tombe rarement pile sur une heure ronde : on ajuste le sommet par une
+    parabole passant par les 3 points horaires qui l'encadrent (précision ~±10 min, ce
+    qui suffit pour "PM vers 18h05"). Les hauteurs sont relatives au niveau moyen
+    (Open-Meteo `sea_level_height_msl`), pas au zéro hydrographique du SHOM : on les
+    affiche donc comme des écarts (+2,1 m / −2,0 m), et surtout le MARNAGE.
+    La détection se fait sur la série continue (pas jour par jour) pour ne pas rater
+    un extremum à 23 h ou 0 h."""
+    pts = []
+    for i, e in enumerate(evals):
+        lvl = (e.drivers.get("maree") or {}).get("level")
+        if lvl is not None:
+            pts.append((i, e.time, lvl))
+    out = {}
+    for k in range(1, len(pts) - 1):
+        (_, _t0, v0), (_, t1, v1), (_, _t2, v2) = pts[k - 1], pts[k], pts[k + 1]
+        if v1 >= v0 and v1 > v2 or v1 > v0 and v1 >= v2:
+            typ = "PM"
+        elif v1 <= v0 and v1 < v2 or v1 < v0 and v1 <= v2:
+            typ = "BM"
+        else:
+            continue
+        denom = v0 - 2 * v1 + v2
+        dt = (0.5 * (v0 - v2) / denom) if denom else 0.0      # décalage en heures, |dt| ≤ 0.5
+        peak = v1 - 0.25 * (v0 - v2) * dt if denom else v1
+        hour = int(t1[11:13]) + dt
+        day = t1[:10]
+        if hour >= 24:            # l'ajustement a poussé l'extremum sur le jour suivant
+            hour -= 24
+            day = _next_day(day)
+        elif hour < 0:
+            hour += 24
+            day = _prev_day(day)
+        hh, mm = int(hour), int(round((hour % 1) * 60))
+        if mm == 60:
+            hh, mm = hh + 1, 0
+        out.setdefault(day, []).append({"type": typ, "time": f"{hh:02d}:{mm:02d}",
+                                        "height": round(peak, 2)})
+    res = {}
+    by_day = {}
+    for e in evals:
+        by_day.setdefault(e.time[:10], e)
+    for day, first in by_day.items():
+        m = first.drivers.get("maree") or {}
+        res[day] = {"events": sorted(out.get(day, []), key=lambda x: x["time"]),
+                    "range": m.get("range"), "amplitude": m.get("amplitude")}
+    return res
+
+
+def _next_day(iso):
+    import datetime as _dt
+    return (_dt.date.fromisoformat(iso) + _dt.timedelta(days=1)).isoformat()
+
+
+def _prev_day(iso):
+    import datetime as _dt
+    return (_dt.date.fromisoformat(iso) - _dt.timedelta(days=1)).isoformat()
+
+
 def daylight_for_days(spot, dates):
     """Fenêtre de lumière (lever/coucher/crépuscule) pour chaque date d'un lot d'evals."""
     return {d: dl.sun_events(spot["latitude"], spot["longitude"], d) for d in dates}
@@ -171,6 +232,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"spot": spot, "model": model or "auto",
                                "evals": evals_to_dicts(evals),
                                "daylight": daylight_for_days(spot, dates),
+                               "tides": tide_events(evals),
                                "home": HOME})
 
         if u.path == "/api/sessions":

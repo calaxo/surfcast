@@ -3,6 +3,8 @@
 @tailwind utilities;
 
 @layer base {
+  /* les 3 couleurs sémantiques aussi en variables CSS (DayCard les lit en var(--good)…) */
+  :root { --good: #37d67a; --ok: #f6c945; --bad: #ff6b6b; }
   html { -webkit-text-size-adjust: 100%; }   /* pas de zoom auto du texte sur mobile */
   body {
     @apply bg-bg text-ink font-sans antialiased;

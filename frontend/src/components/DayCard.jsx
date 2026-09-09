@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import Gauge from '@/components/Gauge'
 import DriverBar from '@/components/DriverBar'
-import { fmtDate, mdBold, scoreColor } from '@/lib/format'
+import TideChart from '@/components/TideChart'
+import SpotRose from '@/components/SpotRose'
+import { fmtDate, mdBold, scoreColor, factorColor } from '@/lib/format'
 
 const arrow = (d) =>
   `<span style="display:inline-block;transform:rotate(${d}deg)">↓</span> ${Math.round(d)}°`
@@ -33,7 +35,15 @@ function agreeColor(a) {
   return a === "d'accord" ? 'var(--good)' : a === 'écart moyen' ? 'var(--ok)' : 'var(--bad)'
 }
 
-export default function DayCard({ day, best, hours, daylight, isPast, isToday, sessions }) {
+// Niveau de marée horaire → "+1.2 m ↑" (rel. niveau moyen ; la flèche vient de l'état)
+function tideCell(m) {
+  if (!m || m.level == null) return '—'
+  const st = m.state || ''
+  const sym = st.includes('pleine') ? 'PM' : st.includes('basse') ? 'BM' : st.includes('montante') ? '↑' : st.includes('descendante') ? '↓' : ''
+  return `${m.level > 0 ? '+' : ''}${m.level.toFixed(1)} m ${sym}`
+}
+
+export default function DayCard({ day, best, hours, daylight, tides, spotInfo, isPast, isToday, sessions }) {
   const [open, setOpen] = useState(false)
   const d = best.drivers
   const col = scoreColor(best.score)
@@ -93,12 +103,23 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
         <Gauge score={best.score} />
       </div>
 
-      {/* infos clés en chips (créneau · fenêtre surfable · lumière) */}
+      {/* infos clés en chips (créneau · fenêtre surfable · lumière · énergie · mer) */}
       <div className="flex flex-wrap gap-1.5 mt-2.5">
         <span className="meta">{isPast ? 'ce jour-là' : 'meilleur'} {best.time.slice(11, 16)} · ~{best.wave_h} m</span>
         {win && <span className="meta text-good border-good/30">🏄 surfable {win.from}–{win.to}</span>}
         {daylight?.sunrise && (
           <span className="meta">☀️ {daylight.sunrise}–{daylight.sunset} · lueur {daylight.civil_dusk}</span>
+        )}
+        {d.energie?.value != null && (
+          <span className="meta" title={`flux d'énergie de la houle (∝ H²·T) · ${d.energie.density_kj_m2} kJ/m² en densité`}>
+            ⚡ {d.energie.value} kW/m · {d.energie.label}
+          </span>
+        )}
+        {d.mer?.label && (
+          <span className="meta" title={d.mer.why}
+                style={{ color: factorColor(d.mer.factor), borderColor: factorColor(d.mer.factor) + '55' }}>
+            〰 {d.mer.label}
+          </span>
         )}
         {d.thermique?.water != null && (
           <span
@@ -149,6 +170,35 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
         </div>
       )}
 
+      {/* Marée + rose du spot : QUAND dans la marée, et d'OÙ viennent houle et vent par
+          rapport à la géométrie du spot. Sur mobile la rose passe sous la courbe. */}
+      <div className="mt-3 grid gap-3 items-start [grid-template-columns:1fr] sm:[grid-template-columns:1fr_auto]">
+        <div className="min-w-0 bg-card2 border border-line rounded-xl px-2 pt-2 pb-1.5">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap px-1">
+            <span className="text-[11px] text-mut uppercase tracking-wide">Marée · quand y aller</span>
+            {tides?.range != null && (
+              <span className="text-[11px] text-mut">
+                marnage {tides.range} m{tides.amplitude ? ` · ${tides.amplitude}` : ''}
+              </span>
+            )}
+          </div>
+          <TideChart
+            hours={hours}
+            tides={tides}
+            daylight={daylight}
+            sessions={sessions}
+            isToday={isToday}
+            bestTime={best.time.slice(11, 16)}
+          />
+          <div className="px-1 text-[10.5px] text-mut leading-tight">
+            bande = note horaire (vif ≥ 3,5) · ▲ meilleur · ⚠ shorebreak
+            {isToday ? ' · pointillé = maintenant' : ''}
+            {sessions?.length ? ' · fond orange = ta session' : ''}
+          </div>
+        </div>
+        <SpotRose spot={spotInfo} ev={best} />
+      </div>
+
       <div className="grid gap-2.5 mt-3 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
         {facts.map((f) => (
           <DriverBar key={f.title} {...f} />
@@ -168,39 +218,54 @@ export default function DayCard({ day, best, hours, daylight, isPast, isToday, s
             className="my-3 text-[14px] text-mut"
             dangerouslySetInnerHTML={{ __html: mdBold(best.explanation) }}
           />
-          <table className="w-full border-collapse mt-1 text-[13px]">
-            <thead>
-              <tr className="text-mut">
-                <th className="text-left py-1 px-1.5 font-normal">Heure</th>
-                <th className="text-left py-1 px-1.5 font-normal">Note</th>
-                <th className="text-left py-1 px-1.5 font-normal">Vagues</th>
-                <th className="text-left py-1 px-1.5 font-normal">Houle</th>
-                <th className="text-left py-1 px-1.5 font-normal">Vent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((e) => (
-                <tr key={e.time} className="border-t border-line">
-                  <td className="py-1 px-1.5">{e.time.slice(11, 16)}</td>
-                  <td className="py-1 px-1.5">
-                    <span
-                      className="chip"
-                      style={{ background: scoreColor(e.score) + '22', color: scoreColor(e.score) }}
-                    >
-                      {e.score}
-                    </span>
-                  </td>
-                  <td className="py-1 px-1.5">{e.wave_h} m</td>
-                  <td className="py-1 px-1.5">
-                    {e.drivers.houle.h}m @ {e.drivers.houle.periode}s
-                  </td>
-                  <td className="py-1 px-1.5">
-                    {Math.round(e.drivers.vent.speed)}km/h {e.drivers.vent.label}
-                  </td>
+          {d.mer?.why && (
+            <p className="mb-3 text-[13px] text-mut">〰 <b className="text-ink">{d.mer.label}</b> — {d.mer.why}.</p>
+          )}
+          {/* le tableau peut dépasser sur mobile → il scrolle dans son cadre, jamais la page */}
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full border-collapse mt-1 text-[13px] whitespace-nowrap">
+              <thead>
+                <tr className="text-mut">
+                  <th className="text-left py-1 px-1.5 font-normal">Heure</th>
+                  <th className="text-left py-1 px-1.5 font-normal">Note</th>
+                  <th className="text-left py-1 px-1.5 font-normal">Vagues</th>
+                  <th className="text-left py-1 px-1.5 font-normal">Houle</th>
+                  <th className="text-left py-1 px-1.5 font-normal">Vent</th>
+                  <th className="text-left py-1 px-1.5 font-normal" title="flux d'énergie (kW/m)">⚡</th>
+                  <th className="text-left py-1 px-1.5 font-normal">Marée</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((e) => (
+                  <tr key={e.time} className="border-t border-line">
+                    <td className="py-1 px-1.5">{e.time.slice(11, 16)}</td>
+                    <td className="py-1 px-1.5">
+                      <span
+                        className="chip"
+                        style={{ background: scoreColor(e.score) + '22', color: scoreColor(e.score) }}
+                      >
+                        {e.score}
+                      </span>
+                    </td>
+                    <td className="py-1 px-1.5">{e.wave_h} m</td>
+                    <td className="py-1 px-1.5">
+                      {e.drivers.houle.h}m @ {e.drivers.houle.periode}s{' '}
+                      <span className="text-mut" dangerouslySetInnerHTML={{ __html: arrow(e.drivers.houle.dir ?? 0) }} />
+                    </td>
+                    <td className="py-1 px-1.5">
+                      <span dangerouslySetInnerHTML={{ __html: arrow(e.drivers.vent.dir ?? 0) }} />{' '}
+                      {Math.round(e.drivers.vent.speed)}km/h <span className="text-mut">{e.drivers.vent.label}</span>
+                    </td>
+                    <td className="py-1 px-1.5">{e.drivers.energie?.value}</td>
+                    <td className="py-1 px-1.5 text-mut">
+                      {tideCell(e.drivers.maree)}
+                      {e.drivers.maree?.shorebreak && <span className="text-bad"> ⚠</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

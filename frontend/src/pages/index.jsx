@@ -132,6 +132,8 @@ export default function Forecast() {
             best={bestOfDay(evals, day)}
             hours={hours}
             daylight={data.daylight?.[day]}
+            tides={data.tides?.[day]}
+            spotInfo={spotInfo}
             isPast={day < today}
             isToday={day === today}
             sessions={sessByDate[day]}

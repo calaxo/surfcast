@@ -453,6 +453,50 @@ def backwash_note(tide_norm, tide_range, period, spot) -> str | None:
 
 
 # --------------------------------------------------------------------------
+# 4g. ORGANISATION DE LA MER : "bien rangée" vs "chantier" (étalement directionnel)
+# --------------------------------------------------------------------------
+# Les pros lisent l'ÉTALEMENT DIRECTIONNEL du spectre : une houle concentrée (un seul
+# train, une direction) fait des lignes propres ; plusieurs trains de directions
+# différentes + de la mer du vent = surface en désordre (pics croisés, vagues qui
+# ferment). Open-Meteo ne fournit pas l'étalement, mais on peut l'approcher avec ce
+# qu'on a : la part d'ÉNERGIE de la mer du vent dans la mer totale (énergie ∝ H², donc
+# on compare des H²), et l'écart de direction entre les deux trains de houle.
+# Indicateur INFORMATIF, hors score, tant qu'il n'est pas calibré sur des sessions.
+
+def sea_organisation(c) -> dict:
+    hs = c.swell_h or 0.0
+    if hs < 0.1:
+        return {"label": None, "factor": None, "why": "pas assez de mer pour juger"}
+    ww = c.wind_wave_h or 0.0
+    windsea = min(1.0, (ww * ww) / (hs * hs))          # part d'énergie de la mer du vent
+    cross = None
+    if (c.sw1_h and c.sw2_h and c.sw2_h >= 0.2 and c.sw1_dir is not None
+            and c.sw2_dir is not None and c.sw2_h >= 0.4 * c.sw1_h):
+        cross = _angle_diff(c.sw1_dir, c.sw2_dir)      # 2 trains comparables, croisés ?
+    factor = 1.0 - 0.7 * windsea
+    if cross is not None and cross > 30:
+        factor -= min(0.3, (cross - 30) / 200.0)       # 30° → 0, 90° → -0.3
+    factor = round(max(0.1, factor), 2)
+
+    bits = []
+    if windsea >= 0.15:
+        bits.append(f"mer du vent = {windsea * 100:.0f} % de l'énergie")
+    if cross is not None and cross > 30:
+        bits.append(f"2 trains de houle croisés à {cross:.0f}°")
+    if factor >= 0.75:
+        label = "mer bien rangée"
+        why = "une houle dominante, une direction : lignes propres" + (f" ({'; '.join(bits)})" if bits else "")
+    elif factor >= 0.5:
+        label = "mer un peu mélangée"
+        why = "; ".join(bits) or "houle et mer du vent se partagent l'énergie"
+    else:
+        label = "chantier (mer croisée)"
+        why = ("; ".join(bits) or "beaucoup de mer du vent") + " → pics qui se croisent, vagues qui ferment"
+    return {"label": label, "factor": factor, "why": why,
+            "windsea_share": round(windsea, 2), "cross_deg": round(cross) if cross is not None else None}
+
+
+# --------------------------------------------------------------------------
 # 5. SCORE ÉNERGIE : de la puissance (kW/m) vers une note 0..10
 # --------------------------------------------------------------------------
 
@@ -725,8 +769,15 @@ def evaluate(c: Conditions, spot: dict, level: str = "debutant") -> Evaluation:
         "orientation": sdir,
         "maree": {"state": tide["state"], "norm": tide.get("norm"), "breaker": tide["breaker"],
                   "label": tide["label"], "factor": tide["factor"], "why": tide["why"],
-                  "shorebreak": tide["shorebreak"], "amplitude": amp["label"]},
-        "energie": {"value": round(power, 1), "unit": "kW/m", "label": power_label(power)},
+                  "shorebreak": tide["shorebreak"], "amplitude": amp["label"],
+                  # niveau horaire (m rel. niveau moyen) + marnage → courbe de marée côté UI
+                  "level": c.tide_m, "range": c.tide_range},
+        # Puissance = flux d'énergie (kW/m, ∝ H²·T) ; density = énergie par m² (kJ/m², ∝ H²).
+        # Les deux sont affichées car les sites de report disent "énergie" pour l'une ou l'autre.
+        "energie": {"value": round(power, 1), "unit": "kW/m", "label": power_label(power),
+                    "density_kj_m2": round(energy_density_kj_m2(hs_eff), 1)},
+        # Organisation de la mer (proxy d'étalement directionnel) : informatif, hors score.
+        "mer": sea_organisation(c),
         # Confort thermique : informatif, VOLONTAIREMENT hors du calcul du score.
         "thermique": wetsuit_advice(c.water_temp, c.air_temp, c.wind_speed, spot.get("suit", DEFAULT_SUIT)),
     }

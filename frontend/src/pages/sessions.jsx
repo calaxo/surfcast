@@ -102,15 +102,78 @@ export default function Sessions() {
         </div>
       ))}
 
-      <div className="card my-3.5">
-        <b className="text-accent">Ce que la vérif révèle déjà</b>
-        <br />
-        Le modèle a <b className="text-accent">bien vu le vent</b> les deux fois (offshore
-        fin mai, onshore le 18/07) — c'est exactement ta règle. Mais son{' '}
-        <b className="text-accent">score brut sous-note les petites houles propres</b> :
-        pour ton niveau, <b className="text-accent">petit + offshore = super</b>, même si
-        l'énergie physique est faible. → prochaine étape : recalibrer le score en donnant
-        plus de poids au vent quand c'est petit.
+      <Bilan verifs={data.verifications || []} />
+      <EnergyBySpot rows={data.energy_by_spot || []} />
+    </div>
+  )
+}
+
+// Bilan chiffré, recalculé à chaque fois (plus de texte figé qui vieillit mal).
+function Bilan({ verifs }) {
+  const ok = verifs.filter((v) => v.model_available)
+  if (!ok.length) return null
+  const agree = ok.filter((v) => v.agreement === "d'accord").length
+  const gaps = ok.map((v) => v.gap).filter((g) => g != null)
+  const meanAbs = gaps.length ? gaps.reduce((a, g) => a + Math.abs(g), 0) / gaps.length : null
+  const bias = gaps.length ? gaps.reduce((a, g) => a + g, 0) / gaps.length : null
+  return (
+    <div className="card my-3.5 text-[14px]">
+      <b className="text-accent">Bilan</b> — sur {ok.length} sessions comparées, le modèle est{' '}
+      <b className="text-good">d'accord {agree} fois</b>
+      {meanAbs != null && <> ; écart moyen {meanAbs.toFixed(1)} pt</>}
+      {bias != null && (
+        <>
+          , biais {bias > 0 ? '+' : ''}{bias.toFixed(1)}{' '}
+          <span className="text-mut">({bias > 0.3 ? 'un peu trop optimiste' : bias < -0.3 ? 'un peu trop pessimiste' : 'pas de biais net'})</span>
+        </>
+      )}
+      .
+    </div>
+  )
+}
+
+// Plage d'énergie (kW/m) des bonnes vs mauvaises sessions, par spot. Quand les deux
+// plages se chevauchent, c'est une info en soi : l'énergie ne fait pas la session, ce
+// sont le vent et la marée qui tranchent.
+function EnergyBySpot({ rows }) {
+  const has = rows.filter((r) => r.good || r.bad)
+  if (!has.length) return null
+  const fmt = (r) => (r ? `${r[0]}–${r[1]} kW/m` : '—')
+  const overlap = (r) => r.good && r.bad && r.bad[1] >= r.good[0] && r.good[1] >= r.bad[0]
+  return (
+    <div className="card my-3.5">
+      <b className="text-accent">⚡ Ton énergie de kiff, spot par spot</b>
+      <p className="text-mut text-[13px] mt-1">
+        Flux d'énergie de la houle (kW/m, ∝ H²·T) pendant tes sessions, reconstruit par le
+        modèle. Les pros disent « tel spot marche à partir de X » ; ici c'est mesuré sur{' '}
+        <i>tes</i> sessions, et la plage se resserre au fil du journal.
+      </p>
+      <div className="grid gap-2 mt-2 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+        {has.map((r) => (
+          <div key={r.spot} className="bg-card2 border border-line rounded-xl px-3 py-2.5 text-[13.5px]">
+            <div className="font-semibold">{r.name}</div>
+            <div className="mt-1">
+              <span className="text-good">●</span> bonnes (≥ 4/5) : <b>{fmt(r.good)}</b>{' '}
+              <span className="text-mut">(n={r.n_good})</span>
+            </div>
+            <div>
+              <span className="text-bad">●</span> nulles (≤ 2/5) : <b>{fmt(r.bad)}</b>{' '}
+              <span className="text-mut">(n={r.n_bad})</span>
+            </div>
+            {overlap(r) && (
+              <div className="text-mut text-[12.5px] mt-1.5">
+                Les plages se chevauchent → ici l'énergie seule ne fait pas la session : c'est
+                le vent et la marée (shorebreak) qui tranchent.
+              </div>
+            )}
+            {!r.good && r.bad && (
+              <div className="text-mut text-[12.5px] mt-1.5">
+                Que des sessions nulles pour l'instant, avec de l'énergie : le problème n'était
+                pas la houle (marée haute de vive-eau → shorebreak).
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )

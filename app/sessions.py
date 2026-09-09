@@ -137,6 +137,11 @@ def verify_session(sess: dict, spot: dict, model=None) -> dict:
     result["model_wind_label"] = best.drivers["vent"]["label"]
     result["model_tide"] = best.drivers["maree"]["state"]
     result["model_breaker"] = best.drivers["maree"]["breaker"]
+    # Puissance moyenne (kW/m) sur la plage → sert à apprendre, spot par spot, la plage
+    # d'énergie où Axel se régale (l'équivalent du "ça marche à partir de X kJ" des pros,
+    # mais calé sur SES sessions au lieu d'être deviné).
+    powers = [e.power_kw_m for e in window if e.power_kw_m is not None]
+    result["model_power"] = round(sum(powers) / len(powers), 1) if powers else None
 
     # Comparaison ressenti (0-5) vs modèle (0-10) : on compare la MOYENNE sur la plage
     # (plus juste qu'un pic ponctuel pour un ressenti global de session).
@@ -174,4 +179,30 @@ def learned_insights(data: dict, spots: dict, model=None) -> dict:
         spot = spots.get(s["spot"])
         if spot:
             verifs.append(verify_session(s, spot, model=model))
-    return {"verifications": verifs, "rules": data.get("learned_rules", [])}
+    return {"verifications": verifs, "rules": data.get("learned_rules", []),
+            "energy_by_spot": energy_by_spot(verifs, spots)}
+
+
+def energy_by_spot(verifs: list, spots: dict) -> list:
+    """Plage de puissance (kW/m) des BONNES sessions (≥ 4/5) et des NULLES (≤ 2/5), par spot.
+    C'est l'idée "tel spot commence à marcher à X et sature à Y" — mais mesurée sur les
+    sessions réelles d'Axel plutôt que devinée. Avec peu de sessions la plage est large et
+    ça se voit (n affiché) ; elle se resserre au fil du journal."""
+    acc = {}
+    for v in verifs:
+        p = v.get("model_power")
+        if p is None:
+            continue
+        a = acc.setdefault(v["spot"], {"good": [], "bad": []})
+        if v["rating_obs"] >= 4:
+            a["good"].append(p)
+        elif v["rating_obs"] <= 2:
+            a["bad"].append(p)
+    out = []
+    for key, a in acc.items():
+        spot = spots.get(key, {})
+        rng = lambda xs: [min(xs), max(xs)] if xs else None
+        out.append({"spot": key, "name": spot.get("name", key),
+                    "good": rng(a["good"]), "n_good": len(a["good"]),
+                    "bad": rng(a["bad"]), "n_bad": len(a["bad"])})
+    return out

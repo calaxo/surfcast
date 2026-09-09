@@ -7,3 +7,6 @@ dist/
 .env
 .DS_Store
 frontend/dev-dist/
+
+# captures d'écran de référence (40 Mo, hors git)
+images/
