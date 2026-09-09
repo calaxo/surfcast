@@ -28,6 +28,7 @@ Ouvrir http://localhost:5173
 - `spots.yaml` : config des spots (orientation, fenêtre houle, offshore, temps de route).
 - `sessions.json` : journal de sessions loguées (vérité terrain).
 - `docs/physique-vagues-surf.md` : brief scientifique complet et sourcé.
+- `docs/etude-rider-report.md` : étude d'un site concurrent (2026-09) — idées reprises, écartées, erreurs de science relevées.
 - `web/` : ancienne page HTML standalone (remplacée par `frontend/`), gardée en secours.
 
 ## Références / ce que regardent les pros
@@ -51,6 +52,6 @@ source, et se comparer à ces références en validation.)
 
 ## Endpoints backend
 - `GET /api/config` — home + spots
-- `GET /api/forecast?spot=&model=` — prévision 3 j (score + explication)
-- `GET /api/sessions?model=` — journal + vérification
+- `GET /api/forecast?spot=&model=&level=&past=` — prévision 3 j (+ jours passés) : evals horaires (score, drivers, explication), `daylight` et `tides` (PM/BM interpolés, marnage) par jour
+- `GET /api/sessions?model=` — journal + vérification (hindcast vs ressenti) + `energy_by_spot` (plage kW/m des bonnes/mauvaises sessions)
 - `GET /api/overview?model=` — score du jour par spot (pour la carte)
