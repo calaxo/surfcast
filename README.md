@@ -39,34 +39,55 @@ npm run dev
 ```
 Ouvrir http://localhost:5173
 
-Tests (hors-ligne, stdlib) : `python -m unittest discover -s tests`
+Tests (hors-ligne, aucun appel réseau) : `pip install pytest pyyaml && python -m pytest`
 
 ## Docker
 ```bash
 docker run -d -p 8090:8090 \
   -v surfcast_cache:/app/cache \
   -v ./sessions.json:/data/sessions.json:ro -e SURFCAST_SESSIONS=/data/sessions.json \
-  -e CANDHIS_TOKEN=... \
+  -e SURFCAST_OWNER_KEY=... -e CANDHIS_TOKEN=... \
   ghcr.io/calaxo/surfcast:latest
 ```
-(`CANDHIS_TOKEN` et le volume `sessions.json` sont optionnels.)
+(`CANDHIS_TOKEN`, `SURFCAST_OWNER_KEY` et le volume `sessions.json` sont optionnels.)
+
+## Public / perso
+Le site s'utilise **sans compte**. Seules les données personnelles (journal de sessions,
+point de départ `home`) sont réservées au propriétaire : il saisit une fois sa clé
+(`SURFCAST_OWNER_KEY`, au moins 16 caractères) sur `/connexion`, ce qui pose un cookie
+HttpOnly signé. Sans clé configurée, ces données ne sont servies à personne. Le service
+worker ne met jamais en cache `/api/me`, `/api/sessions`, `/api/login`, `/api/logout`.
+
+## Sobriété des appels sortants (`app/fetch.py`)
+- cache **partagé** entre visiteurs (mémoire + disque `cache/`) : Open-Meteo 1 h, CANDHIS
+  30 min, hindcast permanent ; clé normalisée (coordonnées arrondies, modèle en liste fermée) ;
+- une seule requête par (spot, modèle) couvre toutes les vues (7 j passés + 3 j de prévision,
+  découpés ensuite), et le vent est partagé entre modèles ;
+- **une seule requête en vol par clé** : N visiteurs simultanés = 1 appel ;
+- débit global borné (seau à jetons), timeout, nouvel essai à délai croissant ; en cas de
+  panne, la dernière donnée connue est servie (jusqu'à 48 h) ;
+- budget quotidien : Open-Meteo 5 000 appels (conditions : moins de 10 000), CANDHIS 120 (quota 150) ;
+- `Cache-Control` : 10 min pour les prévisions, `private, no-store` pour le perso.
 
 ## Configuration
 | Élément | Rôle |
 |---|---|
 | `spots.yaml` | spots : orientation, fenêtre de houle, offshore, pente, marée idéale, temps de route depuis `home` |
 | `sessions.json` | **votre** journal de sessions (git-ignoré). Partir de `sessions.example.json` |
-| `SURFCAST_SESSIONS` | chemin du journal (ex. fichier monté en volume). Défaut : `sessions.json`, sinon l'exemple |
+| `SURFCAST_SESSIONS` | chemin du journal (ex. fichier monté en volume). Défaut : `sessions.json`, sinon l'exemple. Relu à chaud s'il change |
+| `SURFCAST_OWNER_KEY` / `SURFCAST_OWNER_KEY_FILE` | clé d'accès du propriétaire (ou fichier qui la contient). Absente : partie perso fermée |
 | `CANDHIS_TOKEN` | jeton API CANDHIS (Cerema) pour les bouées. Absent : fonctionnalité désactivée |
 | `SURFCAST_STATIC` | dossier du front buildé (défini dans l'image Docker) |
-| `cache/` | cache des réponses Open-Meteo (hindcast permanent, prévisions 3 h) |
+| `cache/` | cache des réponses sources (hindcast permanent, prévisions 1 h, bouées 30 min) |
 
 ## Endpoints
-- `GET /api/config` : home + spots
+- `GET /api/config` : spots (public ; plus de `home`)
+- `GET /api/me` : `{owner, home}` (`owner=false`, `home=null` pour un visiteur)
+- `POST /api/login` `{"key": ...}` / `POST /api/logout` : accès propriétaire
 - `GET /api/spots` : configuration des spots
-- `GET /api/forecast?spot=&model=&level=&past=` : prévision 3 j (+ jours passés, 14 max) :
+- `GET /api/forecast?spot=&model=&level=&past=` : prévision 3 j (+ jours passés, 7 max) :
   évaluations horaires, `daylight` et `tides` par jour
-- `GET /api/sessions?model=` : journal + vérification (hindcast vs ressenti) + `energy_by_spot`
+- `GET /api/sessions?model=` : **propriétaire seulement** (401 sinon) ; journal + vérification (hindcast vs ressenti) + `energy_by_spot`
 - `GET /api/overview?model=&level=` : score du jour par spot (carte)
 - `GET /api/ranking?level=` : meilleur créneau par spot et par jour
 - `GET /api/buoy?spot=` : bouée CANDHIS la plus proche (si `CANDHIS_TOKEN`)

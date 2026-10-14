@@ -25,6 +25,7 @@ COPY server.py spots.yaml sessions.example.json ./
 # pointer SURFCAST_SESSIONS dessus, par ex.
 #   -v ./sessions.json:/data/sessions.json:ro -e SURFCAST_SESSIONS=/data/sessions.json
 # Sans ça, l'appli tourne avec l'exemple anonymisé sessions.example.json.
+# Accès propriétaire (journal, point de départ) : -e SURFCAST_OWNER_KEY=... (sinon fermé).
 # front buildé
 COPY --from=frontend /fe/dist ./static
 

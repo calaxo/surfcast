@@ -5,7 +5,7 @@ import { daysOf, bestOfDay } from '@/lib/format'
 import DayCard from '@/components/DayCard'
 
 export default function Forecast() {
-  const { spot, model, level, config } = useApp()
+  const { spot, model, level, config, me } = useApp()
   const [data, setData] = useState(null)
   const [sessByDate, setSessByDate] = useState({})
   const [buoy, setBuoy] = useState(null)
@@ -21,6 +21,7 @@ export default function Forecast() {
 
   // Sessions loguées → indexées par date (pour comparer ressenti vs modèle sur les jours passés)
   useEffect(() => {
+    if (!me.owner) return setSessByDate({})   // visiteurs : aucun appel aux sessions
     getSessions()
       .then((s) => {
         const map = {}
@@ -31,7 +32,7 @@ export default function Forecast() {
         setSessByDate(map)
       })
       .catch(() => setSessByDate({}))
-  }, [spot])
+  }, [spot, me.owner])
 
   // Nowcast bouée CANDHIS (vérité terrain temps réel) — n'affiche rien sans token/donnée
   useEffect(() => {

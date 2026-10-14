@@ -1,26 +1,34 @@
 """
 Serveur web de Surfcast (stdlib uniquement, dockerisable).
 
-Endpoints JSON :
-  /api/spots                       -> config des spots
-  /api/forecast?spot=&model=       -> prévision 3 j (score + explication)
-  /api/sessions?model=             -> journal + boucle de vérification
+Endpoints JSON publics (cache serveur partagé + Cache-Control) :
+  /api/spots, /api/config          -> config des spots (rien de personnel)
+  /api/forecast?spot=&model=&level=&past=  -> prévision (score + explication)
+  /api/overview, /api/ranking, /api/buoy
+Endpoints PERSONNELS (cookie propriétaire, jamais mis en cache) :
+  /api/me                          -> {owner, home} ; owner=false pour les visiteurs
+  /api/sessions?model=             -> journal + boucle de vérification (401 sinon)
+  POST /api/login {"key": ...}, POST /api/logout
 
 Sert web/index.html à la racine.
 
     python server.py            # http://localhost:8080
     python server.py --port 9000
 """
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
-import re
 import sys
+import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(__file__))
 from app import sources, science, sessions as sess_mod, daylight as dl, buoy  # noqa: E402
+from app.fetch import UpstreamError  # noqa: E402
 
 HERE = os.path.dirname(__file__)
 # Dossier statique servi : en prod = le front React buildé (frontend/dist), sinon le
@@ -45,24 +53,96 @@ def _sessions_path():
     return local if os.path.isfile(local) else os.path.join(HERE, "sessions.example.json")
 
 
-try:
-    SESSIONS = sess_mod.load_sessions(_sessions_path())
-except (OSError, ValueError):
-    SESSIONS = {"sessions": [], "learned_rules": []}
+class _SessionStore:
+    """Journal relu à chaud si le fichier change (pas besoin de redémarrer)."""
 
-# Validation des paramètres de requête (ils finissent dans des URL Open-Meteo et
-# dans des noms de fichiers de cache) : liste fermée / bornes, rien d'arbitraire.
-_MODEL_RE = re.compile(r"^[a-z0-9_]{1,40}$")
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.stamp = None
+        self.data = {"sessions": [], "learned_rules": []}
+
+    def get(self):
+        path = _sessions_path()
+        try:
+            stamp = (path, os.path.getmtime(path))
+        except OSError:
+            return {"sessions": [], "learned_rules": []}
+        with self.lock:
+            if stamp != self.stamp:
+                try:
+                    self.data = sess_mod.load_sessions(path)
+                except (OSError, ValueError):
+                    self.data = {"sessions": [], "learned_rules": []}
+                self.stamp = stamp
+            return self.data
+
+
+SESSIONS = _SessionStore()
+
+# --- Accès propriétaire -------------------------------------------------------------
+# Une clé secrète (env SURFCAST_OWNER_KEY, ou fichier SURFCAST_OWNER_KEY_FILE) ; jamais
+# dans le dépôt. Sans clé configurée, PERSONNE n'accède aux données perso (fermé par
+# défaut). La saisir une fois sur /connexion pose un cookie HttpOnly signé (HMAC).
+COOKIE = "surfcast_owner"
+COOKIE_MAX_AGE = 180 * 24 * 3600
+_LOGIN_LOCK = threading.Lock()
+_LOGIN_TRIES: list[float] = []
+LOGIN_MAX_PER_MIN = 10
+
+
+def _owner_key():
+    k = os.environ.get("SURFCAST_OWNER_KEY", "").strip()
+    f = os.environ.get("SURFCAST_OWNER_KEY_FILE")
+    if not k and f:
+        try:
+            with open(f, "r", encoding="utf-8") as fh:
+                k = fh.read().strip()
+        except OSError:
+            k = ""
+    return k if len(k) >= 16 else None     # clé trop courte = refusée (fermé)
+
+
+def _owner_token(key):
+    return hmac.new(key.encode(), b"surfcast-owner-v1", hashlib.sha256).hexdigest()
+
+
+def _login_allowed():
+    now = time.monotonic()
+    with _LOGIN_LOCK:
+        _LOGIN_TRIES[:] = [t for t in _LOGIN_TRIES if now - t < 60]
+        if len(_LOGIN_TRIES) >= LOGIN_MAX_PER_MIN:
+            return False
+        _LOGIN_TRIES.append(now)
+        return True
+
+
+# Validation des paramètres de requête : listes fermées / bornes, rien d'arbitraire
+# (chaque valeur distincte = une clé de cache = potentiellement un appel sortant).
+MODELS = {"meteofrance_wave", "gwam", "ewam"}
 _LEVELS = set(getattr(science, "LEVELS", {}) or ("debutant",))
-MAX_PAST_DAYS = 14
+MAX_PAST_DAYS = sources.FETCH_PAST_DAYS
+MAX_URL = 2048
+
+# Cache-Control des réponses JSON publiques (la donnée change au plus toutes les heures).
+CC_FORECAST = "public, max-age=600, stale-while-revalidate=1800"
+CC_BUOY = "public, max-age=300"
+CC_STATIC_JSON = "public, max-age=3600"
+CC_PRIVATE = "private, no-store"
 
 
 def _clean_model(v):
-    return v if v and _MODEL_RE.match(v) else None
+    return v if v in MODELS else None
 
 
 def _clean_level(v):
     return v if v in _LEVELS else "debutant"
+
+
+def _clean_past(v):
+    try:
+        return max(0, min(int(v), MAX_PAST_DAYS))
+    except (TypeError, ValueError):
+        return 4
 
 
 def build_evals(spot, days=3, model=None, level="debutant", past_days=0):
@@ -230,57 +310,123 @@ def ranking(model=None, level="debutant"):
 
 
 class Handler(BaseHTTPRequestHandler):
+    server_version = "surfcast"
+    sys_version = ""
+
     def log_message(self, *a):
-        pass
+        pass                      # pas de journal d'accès (rien de perso dans les logs)
+
+    # -- propriétaire
+    def _cookie(self, name):
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == name:
+                return v
+        return None
+
+    def is_owner(self):
+        key = _owner_key()
+        tok = self._cookie(COOKIE)
+        return bool(key and tok and hmac.compare_digest(tok, _owner_token(key)))
+
+    def _spot(self, qs):
+        return SPOTS.get(qs.get("spot", [next(iter(SPOTS))])[0])
 
     def do_GET(self):
+        if len(self.path) > MAX_URL:
+            return self._json({"error": "requête trop longue"}, 414)
         u = urllib.parse.urlparse(self.path)
         qs = urllib.parse.parse_qs(u.query)
         model = _clean_model(qs.get("model", [None])[0])
         level = _clean_level(qs.get("level", ["debutant"])[0])
 
-        if u.path == "/api/spots":
-            return self._json(SPOTS)
+        if u.path in ("/api/spots", "/api/config"):
+            # /api/config : public uniquement. Le point de départ (domicile) est perso -> /api/me
+            body = SPOTS if u.path == "/api/spots" else {"spots": SPOTS}
+            return self._json(body, cache=CC_STATIC_JSON)
 
-        if u.path == "/api/config":
-            return self._json({"home": HOME, "spots": SPOTS})
+        if u.path == "/api/me":
+            owner = self.is_owner()
+            return self._json({"owner": owner, "home": HOME if owner else None}, cache=CC_PRIVATE)
+
+        if u.path == "/api/sessions":
+            if not self.is_owner():
+                # 401 SANS WWW-Authenticate : pas de fenêtre de connexion du navigateur
+                return self._json({"error": "connexion requise"}, 401, cache=CC_PRIVATE)
+            return self._json(sess_mod.learned_insights(SESSIONS.get(), SPOTS, model=model),
+                              cache=CC_PRIVATE)
 
         if u.path == "/api/overview":
-            return self._json(overview(model, level))
+            return self._json(overview(model, level), cache=CC_FORECAST)
 
         if u.path == "/api/ranking":
-            return self._json(ranking(model, level))
+            return self._json(ranking(model, level), cache=CC_FORECAST)
 
         if u.path == "/api/forecast":
-            spot = SPOTS.get(qs.get("spot", [next(iter(SPOTS))])[0])
+            spot = self._spot(qs)
             if not spot:
                 return self._json({"error": "spot inconnu"}, 404)
+            past = _clean_past(qs.get("past", ["4"])[0])
             try:
-                past = int(qs.get("past", ["4"])[0])
-            except ValueError:
-                past = 4
-            past = max(0, min(past, MAX_PAST_DAYS))
-            evals = build_evals(spot, 3, model, level, past_days=past)
+                evals = build_evals(spot, 3, model, level, past_days=past)
+            except UpstreamError:
+                return self._json({"error": "source météo indisponible, réessayer plus tard"}, 503,
+                                  extra={"Retry-After": "60"})
             dates = sorted({e.time[:10] for e in evals})
             return self._json({"spot": spot, "model": model or "auto",
                                "evals": evals_to_dicts(evals),
                                "daylight": daylight_for_days(spot, dates),
-                               "tides": tide_events(evals),
-                               "home": HOME})
-
-        if u.path == "/api/sessions":
-            return self._json(sess_mod.learned_insights(SESSIONS, SPOTS, model=model))
+                               "tides": tide_events(evals)}, cache=CC_FORECAST)
 
         if u.path == "/api/buoy":
             # nowcast bouée CANDHIS la plus proche du spot (None si pas de token)
-            spot = SPOTS.get(qs.get("spot", [next(iter(SPOTS))])[0])
+            spot = self._spot(qs)
             if not spot:
-                return self._json({"available": False})
+                return self._json({"available": False}, 404)
             data = buoy.latest(spot["latitude"], spot["longitude"]) if buoy.available() else None
-            return self._json({"available": buoy.available(), "buoy": data})
+            return self._json({"available": buoy.available(), "buoy": data}, cache=CC_BUOY)
 
+        if u.path.startswith("/api/"):
+            return self._json({"error": "inconnu"}, 404)
         # --- statique : sert le SPA buildé (dist) avec fallback SPA sur index.html ---
         return self._serve_static(u.path)
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        if u.path not in ("/api/login", "/api/logout"):
+            return self._json({"error": "inconnu"}, 404)
+        # anti-CSRF : la requête doit venir de la même origine que le site
+        origin = self.headers.get("Origin")
+        if origin and urllib.parse.urlparse(origin).netloc != self.headers.get("Host"):
+            return self._json({"error": "origine refusée"}, 403)
+        if u.path == "/api/logout":
+            return self._json({"owner": False}, cache=CC_PRIVATE,
+                              extra={"Set-Cookie": self._set_cookie("", 0)})
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = 0
+        if not 0 < n <= 4096:
+            return self._json({"error": "requête invalide"}, 400)
+        try:
+            given = str(json.loads(self.rfile.read(n).decode("utf-8")).get("key", ""))
+        except (ValueError, AttributeError, UnicodeDecodeError):
+            return self._json({"error": "requête invalide"}, 400)
+        if not _login_allowed():
+            return self._json({"error": "trop d'essais, patienter une minute"}, 429,
+                              extra={"Retry-After": "60"})
+        key = _owner_key()
+        ok = bool(key) and hmac.compare_digest(hashlib.sha256(given.encode()).digest(),
+                                               hashlib.sha256(key.encode()).digest())
+        if not ok:
+            return self._json({"error": "clé incorrecte"}, 403, cache=CC_PRIVATE)
+        return self._json({"owner": True}, cache=CC_PRIVATE,
+                          extra={"Set-Cookie": self._set_cookie(_owner_token(key), COOKIE_MAX_AGE)})
+
+    @staticmethod
+    def _set_cookie(value, max_age):
+        return (f"{COOKIE}={value}; Max-Age={max_age}; Path=/; HttpOnly; Secure; "
+                f"SameSite=Strict")
 
     def _serve_static(self, path):
         rel = path.lstrip("/") or "index.html"
@@ -299,9 +445,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file(idx)
         return self._send(404, "text/plain", b"not found")
 
-    def _json(self, obj, code=200):
+    def _json(self, obj, code=200, cache=None, extra=None):
+        headers = {"Cache-Control": cache if code == 200 and cache else "no-store"}
+        if cache == CC_PRIVATE:
+            headers["Vary"] = "Cookie"
+        headers.update(extra or {})
         self._send(code, "application/json; charset=utf-8",
-                   json.dumps(obj, ensure_ascii=False).encode("utf-8"))
+                   json.dumps(obj, ensure_ascii=False).encode("utf-8"), extra=headers)
 
     def _file(self, full_path):
         ctype = mimetypes.guess_type(full_path)[0] or "application/octet-stream"
@@ -338,7 +488,11 @@ def main():
     if "--port" in sys.argv:
         port = int(sys.argv[sys.argv.index("--port") + 1])
     print(f"Surfcast sur http://localhost:{port}")
-    ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    if not _owner_key():
+        print("SURFCAST_OWNER_KEY absent : données personnelles inaccessibles (mode public seul)")
+    httpd = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    httpd.daemon_threads = True
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":

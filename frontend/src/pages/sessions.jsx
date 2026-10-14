@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useApp } from '@/store'
 import { getSessions } from '@/api'
 import { fmtDateFull, mdBold } from '@/lib/format'
@@ -10,13 +11,23 @@ const agreeColor = (a) =>
   a === "d'accord" ? '#37d67a' : a === 'écart moyen' ? '#f6c945' : '#ff6b6b'
 
 export default function Sessions() {
-  const { model } = useApp()
+  const { model, me } = useApp()
   const [data, setData] = useState(null)
 
   useEffect(() => {
-    getSessions(model).then(setData)
-  }, [model])
+    if (!me.owner) return
+    getSessions(model)
+      .then(setData)
+      .catch(() => setData({ verifications: [], rules: [], energy_by_spot: [] }))
+  }, [model, me.owner])
 
+  if (!me.checked) return <div className="text-mut py-8">Chargement…</div>
+  if (!me.owner)
+    return (
+      <div className="text-mut py-10 text-center text-sm">
+        Page personnelle. <Link to="/connexion">Se connecter</Link>
+      </div>
+    )
   if (!data) return <div className="text-mut py-8">Chargement du journal + hindcast…</div>
 
   return (

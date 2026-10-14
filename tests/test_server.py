@@ -1,11 +1,13 @@
 """Tests hors-ligne (stdlib) : validation des paramètres, anti path-traversal, CORS,
-chargement du journal de sessions. Lancer : python -m unittest discover -s tests"""
+chargement du journal de sessions, accès propriétaire. Lancer : python -m pytest"""
 import http.client
+import json
 import os
 import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from http.server import ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +22,12 @@ class ParamTests(unittest.TestCase):
         self.assertIsNone(server._clean_model(None))
         self.assertIsNone(server._clean_model("../../etc/passwd"))
         self.assertIsNone(server._clean_model("x&past_days=9999"))
+        self.assertIsNone(server._clean_model("ecmwf_inconnu"))     # liste fermée
+
+    def test_past(self):
+        self.assertEqual(server._clean_past("999"), server.MAX_PAST_DAYS)
+        self.assertEqual(server._clean_past("-3"), 0)
+        self.assertEqual(server._clean_past("abc"), 4)
 
     def test_level(self):
         self.assertEqual(server._clean_level("confirme"), "confirme")
@@ -64,9 +72,16 @@ class HttpTests(unittest.TestCase):
         server.STATIC_DIR = cls._old_static
         cls.tmp.cleanup()
 
-    def get(self, path):
+    def get(self, path, headers=None):
         c = http.client.HTTPConnection("127.0.0.1", self.httpd.server_address[1], timeout=10)
-        c.request("GET", path)
+        c.request("GET", path, headers=headers or {})
+        r = c.getresponse()
+        return r, r.read()
+
+    def post(self, path, body=None, headers=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.httpd.server_address[1], timeout=10)
+        data = json.dumps(body).encode() if body is not None else b""
+        c.request("POST", path, body=data, headers={"Content-Type": "application/json", **(headers or {})})
         r = c.getresponse()
         return r, r.read()
 
@@ -86,6 +101,88 @@ class HttpTests(unittest.TestCase):
             r, body = self.get(p)
             self.assertNotIn(b"secret", body, p)
             self.assertNotIn(b"ThreadingHTTPServer", body, p)
+
+
+KEY = "cle-de-test-suffisamment-longue"
+
+
+class OwnerTests(HttpTests):
+    """Les visiteurs n'ont ni sessions ni domicile ; le propriétaire les a après connexion."""
+
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {
+            "SURFCAST_OWNER_KEY": KEY,
+            "SURFCAST_SESSIONS": os.path.join(ROOT, "sessions.example.json")})
+        self.env.start()
+        server._LOGIN_TRIES.clear()
+        self.verify = mock.patch.object(server.sess_mod, "verify_session",
+                                        lambda s, spot, model=None: {"spot": s["spot"], "date": s["date"],
+                                                                     "rating_obs": s["rating"]})
+        self.verify.start()
+
+    def tearDown(self):
+        self.verify.stop()
+        self.env.stop()
+
+    def login(self, key=KEY):
+        return self.post("/api/login", {"key": key})
+
+    def test_anonymous_has_no_sessions(self):
+        r, body = self.get("/api/sessions")
+        self.assertEqual(r.status, 401)
+        self.assertIsNone(r.getheader("WWW-Authenticate"))     # pas de popup navigateur
+        self.assertEqual(r.getheader("Cache-Control"), "no-store")
+        self.assertNotIn(b"exemple-offshore", body)
+
+    def test_config_is_public_only(self):
+        r, body = self.get("/api/config")
+        self.assertNotIn("home", json.loads(body))
+        r, body = self.get("/api/me")
+        self.assertEqual(json.loads(body), {"owner": False, "home": None})
+        self.assertIn("no-store", r.getheader("Cache-Control"))
+
+    def test_wrong_key(self):
+        r, _ = self.login("mauvaise")
+        self.assertEqual(r.status, 403)
+        self.assertIsNone(r.getheader("Set-Cookie"))
+
+    def test_forged_cookie(self):
+        r, _ = self.get("/api/sessions", {"Cookie": "surfcast_owner=" + "0" * 64})
+        self.assertEqual(r.status, 401)
+
+    def test_owner_flow(self):
+        r, _ = self.login()
+        self.assertEqual(r.status, 200)
+        cookie = r.getheader("Set-Cookie")
+        for flag in ("HttpOnly", "Secure", "SameSite=Strict"):
+            self.assertIn(flag, cookie)
+        h = {"Cookie": cookie.split(";")[0]}
+        r, body = self.get("/api/sessions", h)
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.getheader("Cache-Control"), "private, no-store")
+        self.assertIn(b"2025-06-14", body)
+        r, body = self.get("/api/me", h)
+        self.assertTrue(json.loads(body)["owner"])
+        self.assertIsNotNone(json.loads(body)["home"])
+        r, _ = self.post("/api/logout")
+        self.assertIn("Max-Age=0", r.getheader("Set-Cookie"))
+
+    def test_no_key_configured_is_closed(self):
+        with mock.patch.dict(os.environ, {"SURFCAST_OWNER_KEY": ""}):
+            r, _ = self.login("")
+            self.assertEqual(r.status, 403)
+            r, _ = self.get("/api/sessions", {"Cookie": "surfcast_owner=" + server._owner_token("")})
+            self.assertEqual(r.status, 401)
+
+    def test_cross_origin_login_refused(self):
+        r, _ = self.post("/api/login", {"key": KEY}, {"Origin": "https://evil.example"})
+        self.assertEqual(r.status, 403)
+
+    def test_login_rate_limited(self):
+        for _ in range(server.LOGIN_MAX_PER_MIN):
+            self.login("x")
+        r, _ = self.login()
+        self.assertEqual(r.status, 429)
 
 
 if __name__ == "__main__":

@@ -8,16 +8,13 @@ quel modèle croire sur CE spot et ça confirme/infirme les règles locales.
 """
 from __future__ import annotations
 import json
-import os
-import urllib.parse
-import urllib.request
 
 from . import science
+from .fetch import CACHE, UpstreamError, get_json, make_key
 
 ARCHIVE_MARINE = "https://marine-api.open-meteo.com/v1/marine"
 ARCHIVE_WEATHER = "https://archive-api.open-meteo.com/v1/archive"
-
-CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache")
+HINDCAST_TTL = 365 * 24 * 3600   # le passé ne change plus : un appel, puis cache
 
 
 def load_sessions(path: str) -> dict:
@@ -25,29 +22,22 @@ def load_sessions(path: str) -> dict:
         return json.load(f)
 
 
-def _get(url: str, params: dict) -> dict:
-    qs = urllib.parse.urlencode(params, doseq=True)
-    req = urllib.request.Request(f"{url}?{qs}", headers={"User-Agent": "surfcast/0.1"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode("utf-8"))
-
-
 def hindcast_day(lat, lon, tz, date, model=None) -> list[science.Conditions]:
-    """Récupère les conditions passées (hindcast). Mis en cache sur disque : les
-    données passées ne changent jamais → un seul appel réseau, puis instantané."""
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    key = f"hindcast_{lat}_{lon}_{date}_{model or 'auto'}.json"
-    cpath = os.path.join(CACHE_DIR, key)
-    if os.path.isfile(cpath):
-        with open(cpath, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-        return [science.Conditions(**c) for c in raw]
+    """Conditions passées (hindcast), via le cache partagé. Un résultat vide n'est jamais
+    mis en cache (sinon une panne passagère se graverait en dur)."""
+    try:
+        raw = CACHE.get(make_key("hindcast", lat=lat, lon=lon, tz=tz, date=date, model=model),
+                        HINDCAST_TTL, lambda: _fetch_hindcast_raw(lat, lon, tz, date, model))
+    except UpstreamError:
+        return []
+    return [science.Conditions(**c) for c in raw]
 
+
+def _fetch_hindcast_raw(lat, lon, tz, date, model=None) -> list[dict]:
     conds = _fetch_hindcast(lat, lon, tz, date, model)
-    if conds:   # ne JAMAIS cacher un résultat vide (sinon un timeout se grave en dur)
-        with open(cpath, "w", encoding="utf-8") as f:
-            json.dump([c.__dict__ for c in conds], f, ensure_ascii=False)
-    return conds
+    if not conds:
+        raise UpstreamError(f"hindcast vide pour {date}")
+    return [c.__dict__ for c in conds]
 
 
 def _fetch_hindcast(lat, lon, tz, date, model=None) -> list[science.Conditions]:
@@ -65,14 +55,9 @@ def _fetch_hindcast(lat, lon, tz, date, model=None) -> list[science.Conditions]:
         "start_date": date, "end_date": date,
         "hourly": "wind_speed_10m,wind_direction_10m",
     }
-    m = w = {}
-    for _attempt in range(2):   # l'API archive est capricieuse → 1 retry
-        try:
-            m = _get(ARCHIVE_MARINE, marine_params).get("hourly", {})
-            w = _get(ARCHIVE_WEATHER, weather_params).get("hourly", {})
-            break
-        except Exception:
-            m = w = {}
+    # get_json réessaie déjà (délai croissant) : l'API archive est capricieuse
+    m = get_json(ARCHIVE_MARINE, marine_params).get("hourly", {})
+    w = get_json(ARCHIVE_WEATHER, weather_params).get("hourly", {})
     if not m.get("time"):
         return []
 

@@ -9,23 +9,19 @@ Open-Meteo agrège plusieurs modèles ; on peut demander explicitement
 le modèle Météo-France (MFWAM) et comparer avec GFS-Wave.
 """
 from __future__ import annotations
-import json
-import os
-import time
-import urllib.request
-import urllib.parse
+
+from .fetch import CACHE, get_json, make_key
 
 MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cache")
-FORECAST_TTL = 3 * 3600  # la prévision ne change que quelques fois/jour → cache 3 h
-# Version du SCHÉMA de la réponse mise en cache. À incrémenter dès qu'on ajoute ou
-# retire une variable dans MARINE_VARS / WIND_VARS : sans ça, les fichiers déjà en
-# cache (TTL 3 h, et volume Docker PERSISTANT en prod) continueraient d'être servis
-# sans les nouveaux champs, et la fonctionnalité paraîtrait cassée après déploiement.
-#   v2 : ajout de sea_surface_temperature / temperature_2m / apparent_temperature
-CACHE_VERSION = 2
+# Les modèles changent au mieux toutes les heures : 1 h de cache partagé suffit.
+FORECAST_TTL = 3600
+# Une SEULE requête par (spot, modèle) couvre toutes les vues : on demande toujours
+# FETCH_PAST_DAYS jours de passé + FORECAST_DAYS jours de prévision, puis on découpe.
+# (avant : une entrée de cache par valeur de `past`, donc 2x plus d'appels)
+FETCH_PAST_DAYS = 7
+FORECAST_DAYS = 3
 
 MARINE_VARS = [
     "wave_height", "wave_period", "wave_direction",
@@ -43,55 +39,48 @@ WIND_VARS = ["wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
              "temperature_2m", "apparent_temperature"]
 
 
-def _get_json(url: str, params: dict) -> dict:
-    qs = urllib.parse.urlencode(params, doseq=True)
-    full = f"{url}?{qs}"
-    req = urllib.request.Request(full, headers={"User-Agent": "surfcast/0.1"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode("utf-8"))
-
-
-def fetch_marine(lat: float, lon: float, tz: str, days: int = 3, model: str | None = None,
-                 past_days: int = 0) -> dict:
+def fetch_marine(lat: float, lon: float, tz: str, model: str | None = None) -> dict:
     params = {
         "latitude": lat, "longitude": lon, "timezone": tz,
-        "hourly": ",".join(MARINE_VARS), "forecast_days": days,
+        "hourly": ",".join(MARINE_VARS), "forecast_days": FORECAST_DAYS,
+        "past_days": FETCH_PAST_DAYS,
     }
-    if past_days:
-        params["past_days"] = past_days   # Open-Meteo renvoie passé + prévision d'un coup
     if model:
         params["models"] = model
-    return _get_json(MARINE_URL, params)
+    return get_json(MARINE_URL, params)
 
 
-def fetch_wind(lat: float, lon: float, tz: str, days: int = 3, past_days: int = 0) -> dict:
+def fetch_wind(lat: float, lon: float, tz: str) -> dict:
+    # Le vent ne dépend pas du modèle de houle : une seule entrée partagée par spot.
     params = {
         "latitude": lat, "longitude": lon, "timezone": tz,
-        "hourly": ",".join(WIND_VARS), "forecast_days": days,
+        "hourly": ",".join(WIND_VARS), "forecast_days": FORECAST_DAYS,
+        "past_days": FETCH_PAST_DAYS,
     }
-    if past_days:
-        params["past_days"] = past_days
-    return _get_json(FORECAST_URL, params)
+    return get_json(FORECAST_URL, params)
 
 
 def merged_hours(lat: float, lon: float, tz: str, days: int = 3, model: str | None = None,
                  past_days: int = 0) -> list[dict]:
-    """Fusionne marine + vent par heure. Cache disque TTL pour éviter les appels lents répétés."""
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    cpath = os.path.join(CACHE_DIR, f"forecast_v{CACHE_VERSION}_{lat}_{lon}_{days}_{past_days}_{model or 'auto'}.json")
-    if os.path.isfile(cpath) and (time.time() - os.path.getmtime(cpath)) < FORECAST_TTL:
-        with open(cpath, "r", encoding="utf-8") as f:
-            return json.load(f)
-    out = _fetch_merged(lat, lon, tz, days, model, past_days)
-    with open(cpath, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False)
-    return out
+    """Marine + vent fusionnés par heure, découpés sur [aujourd'hui - past_days, +days[.
+    Les variables demandées font partie de la clé : en ajouter invalide le cache tout seul."""
+    days = max(1, min(int(days), FORECAST_DAYS))
+    past_days = max(0, min(int(past_days), FETCH_PAST_DAYS))
+    marine = CACHE.get(make_key("marine", lat=lat, lon=lon, tz=tz, model=model,
+                                vars=",".join(MARINE_VARS)),
+                       FORECAST_TTL, lambda: fetch_marine(lat, lon, tz, model))
+    wind = CACHE.get(make_key("wind", lat=lat, lon=lon, tz=tz, vars=",".join(WIND_VARS)),
+                     FORECAST_TTL, lambda: fetch_wind(lat, lon, tz))
+    return _slice_days(_fetch_merged(marine, wind), FETCH_PAST_DAYS - past_days, days + past_days)
 
 
-def _fetch_merged(lat: float, lon: float, tz: str, days: int = 3, model: str | None = None,
-                  past_days: int = 0) -> list[dict]:
-    marine = fetch_marine(lat, lon, tz, days, model, past_days)
-    wind = fetch_wind(lat, lon, tz, days, past_days)
+def _slice_days(hours: list[dict], skip: int, keep: int) -> list[dict]:
+    dates = sorted({h["time"][:10] for h in hours})
+    wanted = set(dates[skip:skip + keep])
+    return [h for h in hours if h["time"][:10] in wanted]
+
+
+def _fetch_merged(marine: dict, wind: dict) -> list[dict]:
     mh = marine.get("hourly", {})
     wh = wind.get("hourly", {})
     times = mh.get("time", [])

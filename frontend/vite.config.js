@@ -35,14 +35,21 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],   // app-shell précachée → charge hors-ligne
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
-            // Les /api : NETWORK-FIRST → on tente le réseau (5G aléatoire, voiture),
+            // Les /api PUBLICS : NETWORK-FIRST → on tente le réseau (5G aléatoire, voiture),
             // et à défaut on sert la DERNIÈRE prévision connue (backup hors-ligne).
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            // Les routes PERSONNELLES (/api/me, /api/sessions, login/logout) ne passent
+            // JAMAIS par le cache du service worker. (Liste écrite DANS la fonction :
+            // elle est sérialisée telle quelle dans sw.js, sans accès aux variables d'ici.)
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin &&
+              url.pathname.startsWith('/api/') &&
+              !['/api/me', '/api/sessions', '/api/login', '/api/logout'].includes(url.pathname),
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'surfcast-api',
+              cacheName: 'surfcast-api-v2',   // v1 pouvait contenir /api/sessions : purgé au démarrage
               networkTimeoutSeconds: 4,        // pas de réseau en 4 s → on bascule sur le cache
               expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 3 },  // garde 3 j
               cacheableResponse: { statuses: [0, 200] },

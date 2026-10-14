@@ -7,7 +7,7 @@ const tabs = [
   { to: '/', label: 'Prévisions', end: true },
   { to: '/ou-surfer', label: 'Où surfer ?' },
   { to: '/carte', label: 'Carte' },
-  { to: '/sessions', label: 'Sessions' },
+  { to: '/sessions', label: 'Sessions', owner: true },   // perso : propriétaire seulement
   { to: '/science', label: 'La science' },
 ]
 
@@ -36,7 +36,7 @@ function OfflineBadge() {
 }
 
 export default function Header() {
-  const { config, spot, setSpot, level, setLevel } = useApp()
+  const { config, spot, setSpot, level, setLevel, me } = useApp()
   const spots = config?.spots || {}
 
   return (
@@ -80,7 +80,7 @@ export default function Header() {
 
         {/* onglets : scroll horizontal propre sur mobile (fini le débordement) */}
         <nav className="flex gap-1 mt-2 overflow-x-auto no-scrollbar -mx-4 px-4">
-          {tabs.map((t) => (
+          {tabs.filter((t) => !t.owner || me.owner).map((t) => (
             <NavLink
               key={t.to}
               to={t.to}

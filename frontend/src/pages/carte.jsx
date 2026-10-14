@@ -27,10 +27,10 @@ function FitBounds({ points }) {
 }
 
 export default function Carte() {
-  const { config, model, level, setSpot } = useApp()
+  const { model, level, setSpot, me } = useApp()
   const [spots, setSpots] = useState([])
   const navigate = useNavigate()
-  const home = config?.home
+  const home = me.home   // point de départ : perso, seulement pour le propriétaire
 
   useEffect(() => {
     getOverview(model, level).then(setSpots)
