@@ -11,3 +11,4 @@ prototype.py
 *.pyc
 deploy
 README.md
+sessions.json

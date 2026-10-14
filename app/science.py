@@ -246,7 +246,7 @@ def power_label(power: float) -> str:
 # bien du petit clapot mou).
 # wind_floor : plancher du facteur vent selon le niveau. Un débutant surfe la mousse /
 # les reforms près du bord → l'onshore le gêne BEAUCOUP moins qu'un confirmé sur une
-# face verte. Vérifié : sessions onshore qu'Axel a kiffées (15/08 15-16h, 12/08) mais
+# face verte. Vérifié : sessions onshore appréciées (15/08 15-16h, 12/08) mais
 # que le modèle sous-notait. Un confirmé, lui, veut du propre → plancher bas.
 LEVELS = {
     "debutant":      {"min": 0.3, "lo": 0.7, "hi": 1.3, "max": 2.0, "clean_floor": 0.78, "wind_floor": 0.55, "label": "débutant"},

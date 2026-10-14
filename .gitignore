@@ -10,3 +10,6 @@ frontend/dev-dist/
 
 # captures d'écran de référence (40 Mo, hors git)
 images/
+
+# journal de sessions PERSONNEL (OSINT : lieux, dates, habitudes) — voir sessions.example.json
+sessions.json

@@ -138,7 +138,7 @@ def verify_session(sess: dict, spot: dict, model=None) -> dict:
     result["model_tide"] = best.drivers["maree"]["state"]
     result["model_breaker"] = best.drivers["maree"]["breaker"]
     # Puissance moyenne (kW/m) sur la plage → sert à apprendre, spot par spot, la plage
-    # d'énergie où Axel se régale (l'équivalent du "ça marche à partir de X kJ" des pros,
+    # d'énergie où l'on se régale (l'équivalent du "ça marche à partir de X kJ" des pros,
     # mais calé sur SES sessions au lieu d'être deviné).
     powers = [e.power_kw_m for e in window if e.power_kw_m is not None]
     result["model_power"] = round(sum(powers) / len(powers), 1) if powers else None
@@ -186,7 +186,7 @@ def learned_insights(data: dict, spots: dict, model=None) -> dict:
 def energy_by_spot(verifs: list, spots: dict) -> list:
     """Plage de puissance (kW/m) des BONNES sessions (≥ 4/5) et des NULLES (≤ 2/5), par spot.
     C'est l'idée "tel spot commence à marcher à X et sature à Y" — mais mesurée sur les
-    sessions réelles d'Axel plutôt que devinée. Avec peu de sessions la plage est large et
+    sessions réelles loguées plutôt que devinée. Avec peu de sessions la plage est large et
     ça se voit (n affiché) ; elle se resserre au fil du journal."""
     acc = {}
     for v in verifs:

@@ -2,7 +2,7 @@
 
 Contexte : un jour d'essai gratuit sur **rider.report** (site FR de prévision surf, 3 €/mois),
 47 captures d'écran (dossier local `images/`, hors git) + 5 articles de leur blog. But :
-**améliorer surfcast pour Axel**, pas copier un service. Sa version actuelle est validée
+**améliorer surfcast**, pas copier un service. Sa version actuelle est validée
 (« j'aime bien la version du site comme ça ») : tout ce qui suit s'y **ajoute**.
 
 ## 1. Ce que c'est
@@ -39,7 +39,7 @@ Windguru / Surfline / Windy / Yadusurf / Ifremer), avec :
 
 ## 3. Ce qu'on ne prend PAS (et pourquoi)
 
-- **7 skins** → 7 palettes, 7 logiques, incohérent. Axel a fait retirer le sélecteur de modèle
+- **7 skins** → 7 palettes, 7 logiques, incohérent. L'auteur a fait retirer le sélecteur de modèle
   (« je veux juste surfer ») : une seule bonne vue.
 - **12 modèles de vent + 6 de houle** → paralysie du choix. La seule version utile serait un
   indice d'**accord entre modèles** (confiance). Parqué.

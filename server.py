@@ -14,6 +14,7 @@ Sert web/index.html à la racine.
 import json
 import mimetypes
 import os
+import re
 import sys
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,7 +31,38 @@ WEB = STATIC_DIR  # rétro-compat
 CONFIG = sources.load_config(os.path.join(HERE, "spots.yaml"))
 HOME = CONFIG.get("home")
 SPOTS = CONFIG.get("spots", {})
-SESSIONS = sess_mod.load_sessions(os.path.join(HERE, "sessions.json"))
+
+
+def _sessions_path():
+    """Journal de sessions : données PERSONNELLES, hors du dépôt git.
+
+    Ordre : $SURFCAST_SESSIONS (ex : fichier monté en volume en prod), puis
+    sessions.json local (git-ignoré), puis l'exemple anonymisé sessions.example.json."""
+    env = os.environ.get("SURFCAST_SESSIONS")
+    if env:
+        return env
+    local = os.path.join(HERE, "sessions.json")
+    return local if os.path.isfile(local) else os.path.join(HERE, "sessions.example.json")
+
+
+try:
+    SESSIONS = sess_mod.load_sessions(_sessions_path())
+except (OSError, ValueError):
+    SESSIONS = {"sessions": [], "learned_rules": []}
+
+# Validation des paramètres de requête (ils finissent dans des URL Open-Meteo et
+# dans des noms de fichiers de cache) : liste fermée / bornes, rien d'arbitraire.
+_MODEL_RE = re.compile(r"^[a-z0-9_]{1,40}$")
+_LEVELS = set(getattr(science, "LEVELS", {}) or ("debutant",))
+MAX_PAST_DAYS = 14
+
+
+def _clean_model(v):
+    return v if v and _MODEL_RE.match(v) else None
+
+
+def _clean_level(v):
+    return v if v in _LEVELS else "debutant"
 
 
 def build_evals(spot, days=3, model=None, level="debutant", past_days=0):
@@ -204,8 +236,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         qs = urllib.parse.parse_qs(u.query)
-        model = qs.get("model", [None])[0]
-        level = qs.get("level", ["debutant"])[0]
+        model = _clean_model(qs.get("model", [None])[0])
+        level = _clean_level(qs.get("level", ["debutant"])[0])
 
         if u.path == "/api/spots":
             return self._json(SPOTS)
@@ -227,6 +259,7 @@ class Handler(BaseHTTPRequestHandler):
                 past = int(qs.get("past", ["4"])[0])
             except ValueError:
                 past = 4
+            past = max(0, min(past, MAX_PAST_DAYS))
             evals = build_evals(spot, 3, model, level, past_days=past)
             dates = sorted({e.time[:10] for e in evals})
             return self._json({"spot": spot, "model": model or "auto",
@@ -251,9 +284,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _serve_static(self, path):
         rel = path.lstrip("/") or "index.html"
-        full = os.path.normpath(os.path.join(STATIC_DIR, rel))
-        # anti path-traversal : rester dans STATIC_DIR
-        if not full.startswith(os.path.normpath(STATIC_DIR)):
+        root = os.path.realpath(STATIC_DIR)
+        full = os.path.realpath(os.path.join(root, rel))
+        # anti path-traversal : rester DANS STATIC_DIR (commonpath, pas un simple préfixe
+        # de chaîne qui laisserait passer un dossier voisin « static2/ »)
+        if os.path.commonpath([root, full]) != root:
             return self._send(403, "text/plain", b"forbidden")
         if os.path.isfile(full):
             return self._file(full)
@@ -289,7 +324,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        # Pas de CORS « * » : le front est servi par ce même serveur (même origine) et
+        # Vite proxifie /api en dev. Évite que des sites tiers utilisent l'API comme relais.
+        self.send_header("X-Content-Type-Options", "nosniff")
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()

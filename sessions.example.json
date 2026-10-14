@@ -1,0 +1,52 @@
+{
+  "_comment": "EXEMPLE ANONYMISÉ (sessions fictives). Copier en sessions.json (git-ignoré) ou pointer SURFCAST_SESSIONS vers votre propre journal. wind_dir_obs = direction d'OÙ vient le vent ressenti (deg). break_type = plongeante(dumping)/glissante(spilling)/gonflante(surging). rating de 1 à 5.",
+  "sessions": [
+    {
+      "id": "exemple-offshore",
+      "date": "2025-06-14",
+      "date_approx": false,
+      "spot": "la-bouverie-la-palmyre",
+      "time_range": "18:00-20:00",
+      "rating": 5,
+      "verdict": "impeccable",
+      "observed": {
+        "size_txt": "petites mais bien formées",
+        "size_m": 0.8,
+        "wind_txt": "de terre (offshore)",
+        "wind_dir_obs": 80,
+        "break_txt": "rouleaux qui déroulent proprement",
+        "break_type": "glissante/spilling",
+        "period_txt": "correcte",
+        "onshore": false
+      },
+      "notes": "Session fictive d'exemple : petite houle mais vent de terre, ça déroule."
+    },
+    {
+      "id": "exemple-onshore",
+      "date": "2025-06-21",
+      "date_approx": false,
+      "spot": "la-bouverie-la-palmyre",
+      "time_range": "14:00-16:00",
+      "rating": 2,
+      "verdict": "moyen",
+      "observed": {
+        "size_txt": "petites",
+        "size_m": 0.7,
+        "wind_txt": "de mer (onshore)",
+        "wind_dir_obs": 270,
+        "break_txt": "ça fermait",
+        "break_type": "fermée/closeout",
+        "period_txt": "courte",
+        "onshore": true
+      },
+      "notes": "Session fictive d'exemple : même taille, mais vent de mer et période courte."
+    }
+  ],
+  "learned_rules": [
+    {
+      "spot": "la-bouverie-la-palmyre",
+      "rule": "Sur un beach break exposé, la taille compte moins que le VENT : un vent de terre (offshore) lisse la face et fait de beaux rouleaux ; à houle égale, offshore > onshore.",
+      "source": "exemple (comparaison de deux sessions fictives ci-dessus)"
+    }
+  ]
+}
