@@ -7,7 +7,7 @@ import { useApp } from '@/store'
 import { getOverview } from '@/api'
 import { scoreColor, driveTxt } from '@/lib/format'
 
-// Icône "maison" (point de départ) en pur DivIcon -> pas de souci d'assets Leaflet.
+// Icône "maison" (point de départ du propriétaire) en pur DivIcon -> pas de souci d'assets Leaflet.
 const homeIcon = L.divIcon({
   className: '',
   html: '<div style="font-size:22px;line-height:22px">🏠</div>',
@@ -30,7 +30,8 @@ export default function Carte() {
   const { model, level, setSpot, me } = useApp()
   const [spots, setSpots] = useState([])
   const navigate = useNavigate()
-  const home = me.home   // point de départ : perso, seulement pour le propriétaire
+  const home = me.home   // point de départ + temps de route : perso, propriétaire seulement
+  const drive = (key) => home?.drive_min?.[key]
 
   useEffect(() => {
     getOverview(model, level).then(setSpots)
@@ -45,8 +46,8 @@ export default function Carte() {
     <div className="mt-4">
       <h2 className="text-lg font-semibold mb-1">Carte des spots</h2>
       <p className="text-mut text-[13px] mb-3">
-        Score du jour par spot (couleur), distance de route depuis le point de départ. Clique un
-        spot pour voir sa prévision détaillée.
+        Score du jour par spot (couleur){home ? `, temps de route depuis ${home.name}` : ''}.
+        Clique un spot pour voir sa prévision détaillée.
       </p>
 
       <div className="card p-0 overflow-hidden">
@@ -98,7 +99,8 @@ export default function Carte() {
                       {s.best_time ? ` · ${s.best_time}` : ''}
                     </div>
                     <div style={{ fontSize: 12, color: '#555' }}>
-                      🚗 {driveTxt(s.drive_min)} depuis le point de départ · niveau {s.level}
+                      {drive(s.key) != null && <>🚗 {driveTxt(drive(s.key))} depuis {home.name} · </>}
+                      niveau {s.level}
                     </div>
                     <button
                       onClick={() => openSpot(s.key)}
@@ -146,7 +148,8 @@ export default function Carte() {
                 </span>
               </div>
               <div className="text-mut text-[12px] mt-1">
-                {s.region} · 🚗 {driveTxt(s.drive_min)} · {s.level}
+                {s.region}
+                {drive(s.key) != null && <> · 🚗 {driveTxt(drive(s.key))}</>} · {s.level}
               </div>
             </button>
           ))}

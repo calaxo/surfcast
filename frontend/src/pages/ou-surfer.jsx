@@ -5,7 +5,8 @@ import { getRanking } from '@/api'
 import { scoreColor, fmtDate, driveTxt } from '@/lib/format'
 
 export default function OuSurfer() {
-  const { level, setSpot } = useApp()
+  const { level, setSpot, me } = useApp()
+  const drive = (key) => me.home?.drive_min?.[key]
   const [rows, setRows] = useState(null)
   const [dayIdx, setDayIdx] = useState(0)
   const navigate = useNavigate()
@@ -32,8 +33,8 @@ export default function OuSurfer() {
     <div className="mt-4">
       <h2 className="text-lg font-semibold">Où surfer ?</h2>
       <p className="text-mut text-[13px] mb-1">
-        Le meilleur créneau de chaque spot, classé. Choisis le jour ; à score proche,
-        prends le plus proche (ou Oléron 😉).
+        Le meilleur créneau de chaque spot, classé. Choisis le jour
+        {me.home ? ' ; à score proche, prends le plus proche (ou Oléron 😉).' : '.'}
       </p>
 
       <div className="flex gap-2 my-3 flex-wrap">
@@ -69,7 +70,8 @@ export default function OuSurfer() {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold">{r.name}</div>
                 <div className="text-mut text-[12px]">
-                  {r.region} · 🚗 {driveTxt(r.drive_min)}
+                  {r.region}
+                  {drive(r.key) != null && <> · 🚗 {driveTxt(drive(r.key))}</>}
                 </div>
               </div>
               <div className="text-right shrink-0">

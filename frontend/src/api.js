@@ -18,15 +18,48 @@ export const isOnline = () => navigator.onLine
 export const getConfig = () => getJSON('/api/config')
 
 // --- Partie personnelle (propriétaire) ---------------------------------------
-// /api/me répond toujours 200 : {owner:false} pour un visiteur. Jamais d'erreur visible :
-// au moindre souci (hors-ligne, serveur ancien), on se considère simplement visiteur.
-export async function getMe() {
+// /api/me répond toujours 200 : {owner:false} pour un visiteur. Le service worker ne le
+// met jamais en cache ; c'est l'appli qui garde la dernière réponse PROPRIÉTAIRE dans le
+// localStorage de l'appareil, pour rester propriétaire hors-ligne (plage, voiture).
+// Le serveur garde le dernier mot : dès qu'il répond {owner:false}, on oublie tout.
+const ME = 'surfcast:me'
+const SESS = 'surfcast:sessions'
+
+const readLocal = (k) => {
   try {
-    const r = await fetch('/api/me', { cache: 'no-store', credentials: 'same-origin' })
-    return r.ok ? await r.json() : { owner: false }
+    return JSON.parse(localStorage.getItem(k))
   } catch {
-    return { owner: false }
+    return null
   }
+}
+const writeLocal = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v))
+  } catch {}
+}
+export function forgetOwner() {
+  try {
+    localStorage.removeItem(ME)
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(SESS))
+      .forEach((k) => localStorage.removeItem(k))
+  } catch {}
+}
+
+export async function getMe() {
+  let r
+  try {
+    r = await fetch('/api/me', { cache: 'no-store', credentials: 'same-origin' })
+  } catch {
+    // pas de réseau : dernière réponse propriétaire connue sur cet appareil
+    const saved = readLocal(ME)
+    return saved?.owner ? { ...saved, offline: true } : { owner: false }
+  }
+  if (!r.ok) return { owner: false }
+  const me = await r.json()
+  if (me.owner) writeLocal(ME, me)
+  else forgetOwner()
+  return me
 }
 
 export async function login(key) {
@@ -41,18 +74,32 @@ export async function login(key) {
   return false
 }
 
-export const logout = () =>
-  fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+export const logout = () => {
+  forgetOwner()
+  return fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+}
 export const getForecast = (spot, model = '', level = 'debutant') =>
   getJSON(`/api/forecast?spot=${encodeURIComponent(spot)}&model=${encodeURIComponent(model)}&level=${level}`)
-// Jamais mis en cache (ni HTTP, ni service worker) : données personnelles.
+// Jamais mis en cache HTTP ni service worker : données personnelles. La dernière réponse
+// est gardée dans le localStorage de l'appareil (effacée à la déconnexion) pour pouvoir
+// relire son journal hors-ligne.
 export async function getSessions(model = '') {
-  const r = await fetch(`/api/sessions?model=${encodeURIComponent(model)}`, {
-    cache: 'no-store',
-    credentials: 'same-origin',
-  })
+  const key = `${SESS}:${model}`
+  let r
+  try {
+    r = await fetch(`/api/sessions?model=${encodeURIComponent(model)}`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
+  } catch (err) {
+    const saved = readLocal(key)
+    if (saved) return saved
+    throw err
+  }
   if (!r.ok) throw new Error(`sessions -> ${r.status}`)
-  return r.json()
+  const data = await r.json()
+  writeLocal(key, data)
+  return data
 }
 export const getOverview = (model = '', level = 'debutant') =>
   getJSON(`/api/overview?model=${encodeURIComponent(model)}&level=${level}`)

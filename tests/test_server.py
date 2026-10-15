@@ -44,6 +44,14 @@ class ParamTests(unittest.TestCase):
             if old is not None:
                 os.environ["SURFCAST_SESSIONS"] = old
 
+    def test_home_path_and_example(self):
+        with mock.patch.dict(os.environ, {"SURFCAST_HOME": "/data/home.json"}):
+            self.assertEqual(server._home_path(), "/data/home.json")
+        home = server._load_home(os.path.join(ROOT, "home.example.json"))
+        self.assertIn("drive_min", home)
+        self.assertTrue(set(home["drive_min"]) <= set(server.SPOTS))
+        self.assertIsNone(server._load_home(os.path.join(ROOT, "absent.json")))
+
     def test_example_is_valid(self):
         data = server.sess_mod.load_sessions(os.path.join(ROOT, "sessions.example.json"))
         for s in data["sessions"]:
@@ -137,6 +145,7 @@ class OwnerTests(HttpTests):
     def test_config_is_public_only(self):
         r, body = self.get("/api/config")
         self.assertNotIn("home", json.loads(body))
+        self.assertNotIn(b"drive_min", body)       # temps de route = point de départ deviné
         r, body = self.get("/api/me")
         self.assertEqual(json.loads(body), {"owner": False, "home": None})
         self.assertIn("no-store", r.getheader("Cache-Control"))
@@ -163,7 +172,9 @@ class OwnerTests(HttpTests):
         self.assertIn(b"2025-06-14", body)
         r, body = self.get("/api/me", h)
         self.assertTrue(json.loads(body)["owner"])
-        self.assertIsNotNone(json.loads(body)["home"])
+        home = json.loads(body)["home"]
+        self.assertIsNotNone(home)
+        self.assertTrue(set(home["drive_min"]) <= set(server.SPOTS))
         r, _ = self.post("/api/logout")
         self.assertIn("Max-Age=0", r.getheader("Set-Cookie"))
 

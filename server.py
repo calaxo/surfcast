@@ -7,6 +7,7 @@ Endpoints JSON publics (cache serveur partagé + Cache-Control) :
   /api/overview, /api/ranking, /api/buoy
 Endpoints PERSONNELS (cookie propriétaire, jamais mis en cache) :
   /api/me                          -> {owner, home} ; owner=false pour les visiteurs
+                                      (home = point de départ + temps de route par spot)
   /api/sessions?model=             -> journal + boucle de vérification (401 sinon)
   POST /api/login {"key": ...}, POST /api/logout
 
@@ -37,8 +38,34 @@ _DIST = os.path.join(HERE, "frontend", "dist")
 STATIC_DIR = os.environ.get("SURFCAST_STATIC") or (_DIST if os.path.isdir(_DIST) else os.path.join(HERE, "web"))
 WEB = STATIC_DIR  # rétro-compat
 CONFIG = sources.load_config(os.path.join(HERE, "spots.yaml"))
-HOME = CONFIG.get("home")
 SPOTS = CONFIG.get("spots", {})
+
+
+def _home_path():
+    """Point de départ + temps de route : données PERSONNELLES, hors du dépôt git.
+
+    Ordre : $SURFCAST_HOME (ex : fichier monté en volume en prod), puis home.json
+    local (git-ignoré), puis l'exemple home.example.json."""
+    env = os.environ.get("SURFCAST_HOME")
+    if env:
+        return env
+    local = os.path.join(HERE, "home.json")
+    return local if os.path.isfile(local) else os.path.join(HERE, "home.example.json")
+
+
+def _load_home(path):
+    """{name, latitude, longitude, drive_min: {spot: minutes}} ou None si illisible."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            home = json.load(f)
+    except (OSError, ValueError):
+        return None
+    drive = home.get("drive_min") or {}
+    home["drive_min"] = {k: int(v) for k, v in drive.items() if k in SPOTS}
+    return home
+
+
+HOME = _load_home(_home_path())
 
 
 def _sessions_path():
@@ -276,7 +303,7 @@ def overview(model=None, level="debutant"):
         out.append({
             "key": key, "name": spot["name"], "region": spot.get("region"),
             "lat": spot["latitude"], "lon": spot["longitude"],
-            "drive_min": spot.get("drive_min"), "level": spot.get("level"),
+            "level": spot.get("level"),
             "today_score": best.score if best else None,
             "today_label": best.label if best else None,
             "best_time": best.time[11:16] if best else None,
@@ -304,8 +331,7 @@ def ranking(model=None, level="debutant"):
                              "best_time": b.time[11:16], "wave_h": b.wave_h,
                              "headline": b.headline, "surf_light": ev["surf_light"]})
         out.append({"key": key, "name": spot["name"], "region": spot.get("region"),
-                    "drive_min": spot.get("drive_min"), "level": spot.get("level"),
-                    "days": days})
+                    "level": spot.get("level"), "days": days})
     return out
 
 

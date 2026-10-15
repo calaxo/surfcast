@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # code + données backend
 COPY app/ ./app/
-COPY server.py spots.yaml sessions.example.json ./
+COPY server.py spots.yaml sessions.example.json home.example.json ./
 # Le journal de sessions PERSONNEL n'est pas dans l'image : le monter en volume et
 # pointer SURFCAST_SESSIONS dessus, par ex.
 #   -v ./sessions.json:/data/sessions.json:ro -e SURFCAST_SESSIONS=/data/sessions.json

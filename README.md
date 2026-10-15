@@ -53,10 +53,13 @@ docker run -d -p 8090:8090 \
 
 ## Public / perso
 Le site s'utilise **sans compte**. Seules les données personnelles (journal de sessions,
-point de départ `home`) sont réservées au propriétaire : il saisit une fois sa clé
+point de départ et temps de route) sont réservées au propriétaire : il saisit une fois sa clé
 (`SURFCAST_OWNER_KEY`, au moins 16 caractères) sur `/connexion`, ce qui pose un cookie
 HttpOnly signé. Sans clé configurée, ces données ne sont servies à personne. Le service
 worker ne met jamais en cache `/api/me`, `/api/sessions`, `/api/login`, `/api/logout`.
+Hors-ligne, l'appli installée (PWA) reste en mode propriétaire grâce à la dernière réponse
+gardée sur l'appareil (localStorage, effacé à la déconnexion ou dès que le serveur répond
+« visiteur »), et le journal reste consultable.
 
 ## Sobriété des appels sortants (`app/fetch.py`)
 - cache **partagé** entre visiteurs (mémoire + disque `cache/`) : Open-Meteo 1 h, CANDHIS
@@ -72,7 +75,9 @@ worker ne met jamais en cache `/api/me`, `/api/sessions`, `/api/login`, `/api/lo
 ## Configuration
 | Élément | Rôle |
 |---|---|
-| `spots.yaml` | spots : orientation, fenêtre de houle, offshore, pente, marée idéale, temps de route depuis `home` |
+| `spots.yaml` | spots : orientation, fenêtre de houle, offshore, pente, marée idéale |
+| `home.json` | **votre** point de départ et temps de route par spot (git-ignoré), propriétaire seulement. Partir de `home.example.json` |
+| `SURFCAST_HOME` | chemin de ce fichier (ex. monté en volume). Défaut : `home.json`, sinon l'exemple |
 | `sessions.json` | **votre** journal de sessions (git-ignoré). Partir de `sessions.example.json` |
 | `SURFCAST_SESSIONS` | chemin du journal (ex. fichier monté en volume). Défaut : `sessions.json`, sinon l'exemple. Relu à chaud s'il change |
 | `SURFCAST_OWNER_KEY` / `SURFCAST_OWNER_KEY_FILE` | clé d'accès du propriétaire (ou fichier qui la contient). Absente : partie perso fermée |
@@ -82,7 +87,7 @@ worker ne met jamais en cache `/api/me`, `/api/sessions`, `/api/login`, `/api/lo
 
 ## Endpoints
 - `GET /api/config` : spots (public ; plus de `home`)
-- `GET /api/me` : `{owner, home}` (`owner=false`, `home=null` pour un visiteur)
+- `GET /api/me` : `{owner, home}` (`home` = `{name, latitude, longitude, drive_min}` ; `owner=false`, `home=null` pour un visiteur)
 - `POST /api/login` `{"key": ...}` / `POST /api/logout` : accès propriétaire
 - `GET /api/spots` : configuration des spots
 - `GET /api/forecast?spot=&model=&level=&past=` : prévision 3 j (+ jours passés, 7 max) :

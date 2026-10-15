@@ -13,3 +13,6 @@ images/
 
 # journal de sessions PERSONNEL (OSINT : lieux, dates, habitudes) — voir sessions.example.json
 sessions.json
+
+# point de départ + temps de route PERSONNELS (OSINT : ville) — voir home.example.json
+home.json

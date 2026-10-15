@@ -1,0 +1,8 @@
+{
+  "name": "Point de départ (exemple)",
+  "latitude": 44.837,
+  "longitude": -0.579,
+  "drive_min": {
+    "la-bouverie-la-palmyre": 110
+  }
+}
